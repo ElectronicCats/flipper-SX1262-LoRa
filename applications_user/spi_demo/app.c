@@ -11,20 +11,15 @@ const GpioPin* const pin_nss1 = &gpio_ext_pc0;
 const GpioPin* const pin_led = &gpio_swclk;
 const GpioPin* const pin_back = &gpio_button_back;
 
-uint8_t command_regfrmsb[1] = {0x06}; // REGFRMSB
-uint8_t command_regfrmid[1] = {0x07}; // REGFRMID
-uint8_t command_regfrlsb[1] = {0x08}; // REGFRLSB
-
-uint8_t data_response[2] = {0, 0}; // Read 2 bytes
-
 static void my_draw_callback(Canvas* canvas, void* context) {
     UNUSED(context);
     canvas_set_font(canvas, FontPrimary);
-    canvas_draw_str(canvas, 5, 8, "GPIO - SPI DEMO");
+    canvas_draw_str(canvas, 5, 8, "SPI TEST");
     canvas_draw_str(canvas, 5, 22, "Connect Electronic Cats");
     canvas_draw_str(canvas, 5, 32, "Add-On SubGHz");
 }
-//void spi_demo();
+
+bool sanityCheck();
 
 int32_t main_demo_spi(void* _p) {
     UNUSED(_p);
@@ -35,31 +30,7 @@ int32_t main_demo_spi(void* _p) {
     view_port_draw_callback_set(view_port, my_draw_callback, NULL);
     gui_add_view_port(gui, view_port, GuiLayerFullscreen);
 
-    //spi_demo();
-    //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-    furi_hal_gpio_init_simple(pin_nss1, GpioModeOutputPushPull);
-    furi_hal_gpio_write(pin_nss1, false);
-
-    furi_hal_spi_acquire(spi);
-
-    if(furi_hal_spi_bus_tx(spi, command_regfrmid, 1, timeout) &&
-       (furi_hal_spi_bus_rx(spi, data_response, 2, timeout))) {
-        char* data_response_str = (char*)data_response;
-        FURI_LOG_E(
-            TAG,
-            "ID CHIP IS: %s",
-            data_response_str);
-    } else {
-        FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
-    }
-
-    furi_hal_spi_release(spi);
-
-    //SPI.transfer(address | 0x80);              //mask address for write
-
-    furi_hal_gpio_write(pin_nss1, true);
-    //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-
+    sanityCheck();
 
     // Initialize the LED pin as output.
     // GpioModeOutputPushPull means true = 3.3 volts, false = 0 volts.
@@ -80,4 +51,44 @@ int32_t main_demo_spi(void* _p) {
     // Remove the directions from the screen.
     gui_remove_view_port(gui, view_port);
     return 0;
+}
+
+/* Tests that SPI is communicating correctly with the radio.
+* If this fails, check your SPI wiring.  This does not require any setup to run.
+* We test the radio by reading a register that should have a known value.
+*
+* Returns: True if radio is communicating over SPI. False if no connection.
+*/
+bool sanityCheck() {
+
+    uint16_t addressToRead = 0x0740;
+    uint8_t command_read_register[1] = {0x1D}; // OpCode for "read register"
+    uint8_t read_register_address[2] = {
+        (uint8_t)((addressToRead >> 8) & 0xFF),
+        (uint8_t)(addressToRead & 0xFF)
+    };
+    uint8_t dummy_byte = 0x00;
+    uint8_t regValue;
+
+    furi_hal_gpio_init_simple(pin_nss1, GpioModeOutputPushPull);
+    furi_hal_gpio_write(pin_nss1, false);
+
+    furi_hal_spi_acquire(spi);
+
+    if(furi_hal_spi_bus_tx(spi, command_read_register, 1, timeout) &&
+       furi_hal_spi_bus_tx(spi, read_register_address, 2, timeout) &&
+       furi_hal_spi_bus_tx(spi, &dummy_byte, 1, timeout) &&
+       furi_hal_spi_bus_rx(spi, &regValue, 1, timeout)) {
+
+        furi_hal_gpio_write(pin_nss1, true); // CS High = Disabled
+
+        FURI_LOG_E(TAG,"REGISTER VALUE: %02x",regValue);
+        furi_hal_spi_release(spi);
+        return regValue == 0x14; // Success if we read 0x14 from the register
+    } else {
+        furi_hal_gpio_write(pin_nss1, true); // CS High = Disabled
+        FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
+        furi_hal_spi_release(spi);
+        return false;
+    }
 }
