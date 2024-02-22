@@ -1,1 +1,1 @@
-# flipper-SX12XX-LoRa
+# Flipper-SX1262-LoRa
