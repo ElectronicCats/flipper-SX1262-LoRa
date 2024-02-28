@@ -12,7 +12,9 @@ const GpioPin* const pin_led = &gpio_swclk;
 
 const GpioPin* const pin_nss1 = &gpio_ext_pc0;
 const GpioPin* const pin_reset = &gpio_ext_pc1;
+const GpioPin* const pin_busy = &gpio_usart_rx;
 const GpioPin* const pin_dio1 = &gpio_ext_pc3;
+
 
 const GpioPin* const pin_back = &gpio_button_back;
 
@@ -26,6 +28,7 @@ static void my_draw_callback(Canvas* canvas, void* context) {
 
 bool begin();
 bool sanityCheck();
+void checkBusy();
 
 int32_t main_demo_spi(void* _p) {
     UNUSED(_p);
@@ -53,10 +56,15 @@ int32_t main_demo_spi(void* _p) {
     
     furi_hal_spi_bus_handle_init(spi);
 
-    sanityCheck();
+    begin();
+
+    // sanityCheck();
+    // furi_delay_ms(1000);
 
     furi_hal_spi_bus_handle_deinit(spi);
     
+    spi->cs = &gpio_ext_pa4;
+
 
     // Initialize the LED pin as output.
     // GpioModeOutputPushPull means true = 3.3 volts, false = 0 volts.
@@ -76,32 +84,33 @@ int32_t main_demo_spi(void* _p) {
 }
 
 bool begin() {
+    
+    //furi_hal_gpio_init(pin_reset, GpioModeOutputPushPull, GpioPullUp, GpioSpeedVeryHigh);
+    //furi_hal_gpio_init(pin_nss1, GpioModeOutputPushPull, GpioPullUp, GpioSpeedVeryHigh);
 
-    furi_hal_gpio_init(pin_reset, GpioModeOutputPushPull, GpioPullUp, GpioSpeedVeryHigh);
-    furi_hal_gpio_init(pin_nss1, GpioModeOutputPushPull, GpioPullUp, GpioSpeedVeryHigh);
-
-    //furi_hal_gpio_init_simple(pin_reset, GpioModeOutputPushPull);
-    //furi_hal_gpio_init_simple(pin_nss1, GpioModeOutputPushPull);
+    furi_hal_gpio_init_simple(pin_reset, GpioModeOutputPushPull);
+    furi_hal_gpio_init_simple(pin_nss1, GpioModeOutputPushPull);
 
     furi_hal_gpio_write(pin_nss1, true);
     furi_hal_gpio_write(pin_reset, true);
 
     furi_hal_gpio_init_simple(pin_dio1, GpioModeInput);
-    //furi_hal_gpio_init(pin_dio1,GpioModeInput,GpioPullUp,GpioSpeedLow);
 
-    furi_hal_gpio_write(pin_reset, true);
-    furi_delay_ms(100);
+    FURI_LOG_E(TAG,"RESET DEVICE...");
+    furi_delay_ms(10);
     furi_hal_gpio_write(pin_reset, false);
-    furi_delay_ms(100);
+    furi_delay_ms(2);
     furi_hal_gpio_write(pin_reset, true);
-    furi_delay_ms(100);
-    furi_hal_gpio_write(pin_reset, false);
-    furi_delay_ms(100);
+    furi_delay_ms(25);
+
+    checkBusy();
+
+    //furi_hal_gpio_init(pin_dio1,GpioModeInput,GpioPullUp,GpioSpeedLow);
 
     //Ensure SPI communication is working with the radio
     FURI_LOG_E(TAG,"SANITYCHECK...");
-    //bool success = sanityCheck();
-    //if (!success) { return false; }
+    bool success = sanityCheck();
+    if (!success) { return false; }
 
     //Run the bare-minimum required SPI commands to set up the radio to use
     //configureRadioEssentials();
@@ -138,4 +147,25 @@ bool sanityCheck() {
         furi_hal_spi_release(spi);
         return false;
     }
+}
+
+void checkBusy()
+{
+  uint8_t busy_timeout_cnt;
+  busy_timeout_cnt = 0;
+
+  furi_hal_gpio_init_simple(pin_busy, GpioModeInput);
+
+  while (furi_hal_gpio_read(pin_busy))
+  {
+    furi_delay_ms(1);
+    busy_timeout_cnt++;
+
+    if (busy_timeout_cnt > 10) //wait 10mS for busy to complete
+    {
+      busy_timeout_cnt = 0;
+      FURI_LOG_E(TAG,"ERROR - Busy Timeout!");
+      break;
+    }
+  }
 }
