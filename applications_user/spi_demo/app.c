@@ -9,6 +9,11 @@ static FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
 
 //const GpioPin* const pin_nss1 = &gpio_ext_pc0;
 const GpioPin* const pin_led = &gpio_swclk;
+
+const GpioPin* const pin_nss1 = &gpio_ext_pc0;
+const GpioPin* const pin_reset = &gpio_ext_pc1;
+const GpioPin* const pin_dio1 = &gpio_ext_pc3;
+
 const GpioPin* const pin_back = &gpio_button_back;
 
 static void my_draw_callback(Canvas* canvas, void* context) {
@@ -19,6 +24,7 @@ static void my_draw_callback(Canvas* canvas, void* context) {
     canvas_draw_str(canvas, 5, 32, "Add-On SubGHz");
 }
 
+bool begin();
 bool sanityCheck();
 
 int32_t main_demo_spi(void* _p) {
@@ -30,6 +36,21 @@ int32_t main_demo_spi(void* _p) {
     view_port_draw_callback_set(view_port, my_draw_callback, NULL);
     gui_add_view_port(gui, view_port, GuiLayerFullscreen);
 
+
+    FURI_LOG_E(TAG,"PA4: %32x", (unsigned)&gpio_ext_pa4);
+    FURI_LOG_E(TAG,"PC0: %32x", (unsigned)&gpio_ext_pc0);
+
+    FURI_LOG_E(TAG,"spi->cs: %32x", (unsigned)spi->cs);
+
+    spi->cs = &gpio_ext_pc0;
+
+    FURI_LOG_E(TAG,"spi->cs after: %32x", (unsigned)spi->cs);
+
+    //spi->cs = &gpio_ext_pa4;
+
+
+    //spi->cs = &gpio_ext_pc0;
+    
     furi_hal_spi_bus_handle_init(spi);
 
     sanityCheck();
@@ -54,6 +75,40 @@ int32_t main_demo_spi(void* _p) {
     return 0;
 }
 
+bool begin() {
+
+    furi_hal_gpio_init(pin_reset, GpioModeOutputPushPull, GpioPullUp, GpioSpeedVeryHigh);
+    furi_hal_gpio_init(pin_nss1, GpioModeOutputPushPull, GpioPullUp, GpioSpeedVeryHigh);
+
+    //furi_hal_gpio_init_simple(pin_reset, GpioModeOutputPushPull);
+    //furi_hal_gpio_init_simple(pin_nss1, GpioModeOutputPushPull);
+
+    furi_hal_gpio_write(pin_nss1, true);
+    furi_hal_gpio_write(pin_reset, true);
+
+    furi_hal_gpio_init_simple(pin_dio1, GpioModeInput);
+    //furi_hal_gpio_init(pin_dio1,GpioModeInput,GpioPullUp,GpioSpeedLow);
+
+    furi_hal_gpio_write(pin_reset, true);
+    furi_delay_ms(100);
+    furi_hal_gpio_write(pin_reset, false);
+    furi_delay_ms(100);
+    furi_hal_gpio_write(pin_reset, true);
+    furi_delay_ms(100);
+    furi_hal_gpio_write(pin_reset, false);
+    furi_delay_ms(100);
+
+    //Ensure SPI communication is working with the radio
+    FURI_LOG_E(TAG,"SANITYCHECK...");
+    //bool success = sanityCheck();
+    //if (!success) { return false; }
+
+    //Run the bare-minimum required SPI commands to set up the radio to use
+    //configureRadioEssentials();
+  
+    return true;  //Return success that we set up the radio
+}
+
 /* Tests that SPI is communicating correctly with the radio.
 * If this fails, check your SPI wiring.  This does not require any setup to run.
 * We test the radio by reading a register that should have a known value.
@@ -66,8 +121,6 @@ bool sanityCheck() {
     uint8_t read_register_address[2] = {0x07,0x40};
     uint8_t dummy_byte = 0x00;
     uint8_t regValue;
-
-    //spi->cs = &gpio_ext_pc0;
 
     furi_hal_spi_acquire(spi);
 
