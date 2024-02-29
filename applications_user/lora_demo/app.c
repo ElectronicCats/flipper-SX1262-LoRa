@@ -2,7 +2,7 @@
 #include <gui/gui.h>
 #include <furi_hal.h>
 
-#define TAG "SPI LoRa test"
+#define TAG "LoRa test"
 
 static uint32_t timeout = 1000;
 static FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
@@ -27,6 +27,7 @@ static void my_draw_callback(Canvas* canvas, void* context) {
     canvas_draw_str(canvas, 5, 32, "Add-On SubGHz");
 }
 
+void abandone();
 bool begin();
 bool sanityCheck();
 void checkBusy();
@@ -41,7 +42,7 @@ uint8_t spreadingFactor;
 uint8_t lowDataRateOptimize;
 uint32_t transmitTimeout; //Worst-case transmit time depends on some factors
 
-int32_t main_demo_spi(void* _p) {
+int32_t main_lora(void* _p) {
     UNUSED(_p);
 
     // Show directions to user.
@@ -66,6 +67,8 @@ int32_t main_demo_spi(void* _p) {
     //spi->cs = &gpio_ext_pc0;
     
     furi_hal_spi_bus_handle_init(spi);
+
+    abandone();
 
     begin();
 
@@ -181,6 +184,87 @@ void checkBusy()
   }
 }
 
+/*Convert a frequency in hz (such as 915000000) to the respective PLL setting.
+* The radio requires that we set the PLL, which controls the multipler on the internal clock to achieve the desired frequency.
+* Valid frequencies are 150mhz to 960mhz (150000000 to 960000000)
+*
+* NOTE: This assumes the radio is using a 32mhz clock, which is standard.  This is independent of the microcontroller clock
+* See datasheet section 13.4.1 for this calculation.
+* Example: 915mhz (915000000) has a PLL of 959447040
+*/
+uint32_t frequencyToPLL(long rfFreq) {
+/* Datasheet Says:
+    *		rfFreq = (pllFreq * xtalFreq) / 2^25
+    * Rewrite to solve for pllFreq
+    *		pllFreq = (2^25 * rfFreq)/xtalFreq
+    *
+    *	In our case, xtalFreq is 32mhz
+    *	pllFreq = (2^25 * rfFreq) / 32000000
+*/
+  //Basically, we need to do "return ((1 << 25) * rfFreq) / 32000000L"
+  //It's very important to perform this without losing precision or integer overflow.
+  //If arduino supported 64-bit varibales (which it doesn't), we could just do this:
+  //    uint64_t firstPart = (1 << 25) * (uint64_t)rfFreq;
+  //    return (uint32_t)(firstPart / 32000000L);
+  //
+  //Instead, we need to break this up mathimatically to avoid integer overflow
+  //First, we'll simplify the equation by dividing both parts by 2048 (2^11)
+  //    ((1 << 25) * rfFreq) / 32000000L      -->      (16384 * rfFreq) / 15625;
+  //
+  // Now, we'll divide first, then multiply (multiplying first would cause integer overflow)
+  // Because we're dividing, we need to keep track of the remainder to avoid losing precision
+  uint32_t q = rfFreq / 15625UL;  //Gives us the result (quotient), rounded down to the nearest integer
+  uint32_t r = rfFreq % 15625UL;  //Everything that isn't divisible, aka "the part that hasn't been divided yet"
+
+  //Multiply by 16384 to satisfy the equation above
+  q *= 16384UL;
+  r *= 16384UL; //Don't forget, this part still needs to be divided because it was too small to divide before
+  
+  return q + (r / 15625UL);  //Finally divide the the remainder part before adding it back in with the quotient
+}
+
+//Set the radio frequency.  Just a single SPI call,
+//but this is broken out to make it more convenient to change frequency on-the-fly
+//You must set this->pllFrequency before calling this
+
+void updateRadioFrequency() {
+  // Set PLL frequency (this is a complicated math equation. See datasheet entry for SetRfFrequency)
+  furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
+  furi_hal_spi_acquire(spi);
+
+  uint8_t spiBuff[5] = {
+    0x86,  // Opcode for set RF Frequency
+    (uint8_t)((pllFrequency >> 24) & 0xFF), // MSB of pll frequency
+    (uint8_t)((pllFrequency >> 16) & 0xFF),
+    (uint8_t)((pllFrequency >>  8) & 0xFF),
+    (uint8_t)((pllFrequency >>  0) & 0xFF)  // LSB of frequency
+  };
+  furi_hal_spi_bus_tx(spi, spiBuff, 5, timeout);
+
+  furi_hal_spi_release(spi);
+  furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
+  furi_delay_ms(100); // Give time for the radio to process command
+}
+
+/** (Optional) Set the operating frequency of the radio.
+* The 1262 radio supports 150-960Mhz.  This library uses a default of 915Mhz.
+* MAKE SURE THAT YOU ARE OPERATING IN A FREQUENCY THAT IS ALLOWED IN YOUR COUNTRY!
+* For example, 915mhz (915000000 hz) is safe in the US.
+*
+* Specify the desired frequency in Hz (eg 915MHZ is 915000000).
+* Returns TRUE on success, FALSE on invalid frequency
+*/
+bool configSetFrequency(long frequencyInHz) {
+  //Make sure the specified frequency is in the valid range.
+  if (frequencyInHz < 150000000 || frequencyInHz > 960000000) { return false;}
+
+  //Calculate the PLL frequency (See datasheet section 13.4.1 for calculation)
+  //PLL frequency controls the radio's clock multipler to achieve the desired frequency
+  pllFrequency = frequencyToPLL(frequencyInHz);
+  updateRadioFrequency();
+  return true;
+}
+
 /*Send the bare-bones required commands needed for radio to run.
 * Do not set custom or optional commands here, please keep this section as simplified as possible.
 * Essential commands are found by reading the datasheet
@@ -201,7 +285,7 @@ void configureRadioEssentials() {
 
   // Just a single SPI command to set the frequency, but it's broken out
   // into its own function so we can call it on-the-fly when the config changes
-  // configSetFrequency(915000000); // Set default frequency to 915mhz
+  configSetFrequency(915000000); // Set default frequency to 915mhz
 
   // Set modem to LoRa (described in datasheet section 13.4.2)
   furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
@@ -296,87 +380,4 @@ void configureRadioEssentials() {
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
   furi_delay_ms(100); // Give time for radio to process the command
 }
-
-//Set the radio frequency.  Just a single SPI call,
-//but this is broken out to make it more convenient to change frequency on-the-fly
-//You must set this->pllFrequency before calling this
-
-void updateRadioFrequency() {
-  // Set PLL frequency (this is a complicated math equation. See datasheet entry for SetRfFrequency)
-  furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
-  furi_hal_spi_acquire(spi);
-
-  uint8_t spiBuff[5] = {
-    0x86,  // Opcode for set RF Frequency
-    (uint8_t)((pllFrequency >> 24) & 0xFF), // MSB of pll frequency
-    (uint8_t)((pllFrequency >> 16) & 0xFF),
-    (uint8_t)((pllFrequency >>  8) & 0xFF),
-    (uint8_t)((pllFrequency >>  0) & 0xFF)  // LSB of frequency
-  };
-  furi_hal_spi_bus_tx(spi, spiBuff, 5, timeout);
-
-  furi_hal_spi_release(spi);
-  furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
-  furi_delay_ms(100); // Give time for the radio to process command
-}
-
-/*Convert a frequency in hz (such as 915000000) to the respective PLL setting.
-* The radio requires that we set the PLL, which controls the multipler on the internal clock to achieve the desired frequency.
-* Valid frequencies are 150mhz to 960mhz (150000000 to 960000000)
-*
-* NOTE: This assumes the radio is using a 32mhz clock, which is standard.  This is independent of the microcontroller clock
-* See datasheet section 13.4.1 for this calculation.
-* Example: 915mhz (915000000) has a PLL of 959447040
-*/
-uint32_t frequencyToPLL(long rfFreq) {
-/* Datasheet Says:
-    *		rfFreq = (pllFreq * xtalFreq) / 2^25
-    * Rewrite to solve for pllFreq
-    *		pllFreq = (2^25 * rfFreq)/xtalFreq
-    *
-    *	In our case, xtalFreq is 32mhz
-    *	pllFreq = (2^25 * rfFreq) / 32000000
-*/
-  //Basically, we need to do "return ((1 << 25) * rfFreq) / 32000000L"
-  //It's very important to perform this without losing precision or integer overflow.
-  //If arduino supported 64-bit varibales (which it doesn't), we could just do this:
-  //    uint64_t firstPart = (1 << 25) * (uint64_t)rfFreq;
-  //    return (uint32_t)(firstPart / 32000000L);
-  //
-  //Instead, we need to break this up mathimatically to avoid integer overflow
-  //First, we'll simplify the equation by dividing both parts by 2048 (2^11)
-  //    ((1 << 25) * rfFreq) / 32000000L      -->      (16384 * rfFreq) / 15625;
-  //
-  // Now, we'll divide first, then multiply (multiplying first would cause integer overflow)
-  // Because we're dividing, we need to keep track of the remainder to avoid losing precision
-  uint32_t q = rfFreq / 15625UL;  //Gives us the result (quotient), rounded down to the nearest integer
-  uint32_t r = rfFreq % 15625UL;  //Everything that isn't divisible, aka "the part that hasn't been divided yet"
-
-  //Multiply by 16384 to satisfy the equation above
-  q *= 16384UL;
-  r *= 16384UL; //Don't forget, this part still needs to be divided because it was too small to divide before
-  
-  return q + (r / 15625UL);  //Finally divide the the remainder part before adding it back in with the quotient
-}
-
-/** (Optional) Set the operating frequency of the radio.
-* The 1262 radio supports 150-960Mhz.  This library uses a default of 915Mhz.
-* MAKE SURE THAT YOU ARE OPERATING IN A FREQUENCY THAT IS ALLOWED IN YOUR COUNTRY!
-* For example, 915mhz (915000000 hz) is safe in the US.
-*
-* Specify the desired frequency in Hz (eg 915MHZ is 915000000).
-* Returns TRUE on success, FALSE on invalid frequency
-*/
-bool configSetFrequency(long frequencyInHz) {
-  //Make sure the specified frequency is in the valid range.
-  if (frequencyInHz < 150000000 || frequencyInHz > 960000000) { return false;}
-
-  //Calculate the PLL frequency (See datasheet section 13.4.1 for calculation)
-  //PLL frequency controls the radio's clock multipler to achieve the desired frequency
-  pllFrequency = frequencyToPLL(frequencyInHz);
-  updateRadioFrequency();
-  return true;
-}
-
-
 
