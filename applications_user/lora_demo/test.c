@@ -9,6 +9,6 @@ Test
 
 //static uint32_t timeout = 1000;
 
-void abandone() {
+void hope() {
     FURI_LOG_E(TAG, "abandon hope all ye who enter here");
 }
