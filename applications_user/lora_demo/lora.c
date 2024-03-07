@@ -12,6 +12,9 @@ Test
 #define PRESET_LONGRANGE  1
 #define PRESET_FAST       2
 
+#define REG_LR_SYNCWORD	0x0740
+#define RADIO_READ_REGISTER	0x1D
+
 static uint32_t timeout = 1000;
 static FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
 
@@ -625,4 +628,52 @@ bool begin() {
     configureRadioEssentials();
   
     return true;  //Return success that we set up the radio
+}
+
+void readRegisters(uint16_t address, uint8_t *buffer, uint16_t size)
+{
+  uint16_t index;
+  uint8_t addr_l, addr_h;
+
+  addr_h = address >> 8;
+  addr_l = address & 0x00FF;
+  checkBusy();
+
+  furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
+  
+  furi_hal_spi_acquire(spi);
+
+  spiBuff[0] = RADIO_READ_REGISTER;
+  spiBuff[1] =  addr_h;
+  spiBuff[1] =  addr_l;
+  spiBuff[2] =  0xFF; 
+  
+  furi_hal_spi_bus_tx(spi, spiBuff, 4, timeout);
+
+  for (index = 0; index < size; index++)
+  {
+    furi_hal_spi_bus_rx(spi, buffer + index, 1, timeout);
+  }
+
+  furi_hal_spi_release(spi);
+  furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
+}
+
+uint8_t readRegister(uint16_t address)
+{
+  uint8_t data;
+
+  readRegisters(address, &data, 1);
+  return data;
+}
+
+uint16_t getSyncWord()
+{
+  uint8_t msb, lsb;
+  uint16_t syncword;
+  msb = readRegister(REG_LR_SYNCWORD);
+  lsb = readRegister(REG_LR_SYNCWORD + 1);
+  syncword = (msb << 8) + lsb;
+
+  return syncword;
 }

@@ -22,6 +22,9 @@ void configureRadioEssentials();
 bool begin();
 bool sanityCheck();
 void checkBusy();
+int lora_receive_async(u_int8_t* buff, int buffMaxLen);
+
+uint8_t receiveBuff[255];
 
 int32_t main_lora(void* _p) {
     UNUSED(_p);
@@ -71,6 +74,17 @@ int32_t main_lora(void* _p) {
     furi_delay_ms(500);
     furi_hal_gpio_write(pin_led, false);
     furi_delay_ms(500);
+
+    while(furi_hal_gpio_read(pin_back)) {
+        //Receive a packet over radio
+        int bytesRead = lora_receive_async(receiveBuff, sizeof(receiveBuff));
+
+        if (bytesRead > -1) {
+            FURI_LOG_E(TAG,"Packet received... ");
+            //Serial.write(receiveBuff,bytesRead);
+        
+        }
+    }
 
     // Typically when a pin is no longer in use, it is set to analog mode.
     furi_hal_gpio_init_simple(pin_led, GpioModeAnalog);
