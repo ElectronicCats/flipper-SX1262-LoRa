@@ -5,7 +5,7 @@ Test
 #include <furi.h>
 #include <furi_hal.h>
 
-#define TAG "LoRa "
+#define TAG ""
 
 //Presets. These help make radio config easier
 #define PRESET_DEFAULT    0
@@ -26,6 +26,7 @@ static uint32_t timeout = 1000;
 //static uint32_t timeout = 100;
 static FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
 
+const GpioPin* const pin_beacon = &gpio_swclk;
 const GpioPin* const pin_nss1 = &gpio_ext_pc0;
 const GpioPin* const pin_reset = &gpio_ext_pc1;
 const GpioPin* const pin_ant_sw = &gpio_usart_tx;
@@ -266,10 +267,8 @@ void updateModulationParameters() {
   }    
   
   //furi_hal_spi_release(spi);
-  
-  furi_delay_ms(100); // Give time for the radio to process command
-
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
+  furi_delay_ms(100); // Give time for the radio to process command
 
   // Determine transmit timeout based on spreading factor
   switch (spreadingFactor) {
@@ -317,9 +316,9 @@ bool configSetPreset(int preset) {
   FURI_LOG_E(TAG, " ENTER - configSetPreset()");
 
   if (preset == PRESET_DEFAULT) {
-    bandwidth = 4;            //125khz
-    codingRate = 1;           //CR_4_5
-    spreadingFactor = 8;      //SF8
+    bandwidth = 0x04;            //125khz
+    codingRate = 0x01;           //CR_4_5
+    spreadingFactor = 0x08;      //SF8
     lowDataRateOptimize = 0;  //Don't optimize (used for SF12 only)
     updateModulationParameters();
     return true;
@@ -517,7 +516,7 @@ void configureRadioEssentials() {
   //furi_hal_spi_release(spi);
 
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
-  furi_delay_ms(200); // Give time for radio to process the command
+  furi_delay_ms(100); // Give time for radio to process the command
 }
 
 bool waitForRadioCommandCompletion(uint32_t timeout) {
@@ -596,7 +595,7 @@ void setModeReceive() {
 
   //furi_hal_spi_release(spi);
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
-
+  
   waitForRadioCommandCompletion(100);
 
   // Tell the chip to wait for it to receive a packet.
@@ -642,7 +641,13 @@ Returns payload size (1-255) when a packet with a non-zero payload is received. 
 int lora_receive_async(u_int8_t* buff, int buffMaxLen) {
   setModeReceive(); // Sets the mode to receive (if not already in receive mode)
 
-  FURI_LOG_E(TAG," DIO1 VALUE: %d",(uint8_t)furi_hal_gpio_read(pin_dio1));
+  if (furi_hal_gpio_read(pin_dio1)){
+
+    furi_hal_gpio_write(pin_beacon, true);
+    furi_delay_ms(50);
+    furi_hal_gpio_write(pin_beacon, false);
+
+  }
 
   // Radio pin DIO1 (interrupt) goes high when we have a packet ready. If it's low, there's no packet yet
   if (!furi_hal_gpio_read(pin_dio1)) { return -1; } // Return -1, meaning no packet ready
@@ -678,7 +683,7 @@ int lora_receive_async(u_int8_t* buff, int buffMaxLen) {
   spiBuff[3] = 0xFF;          //Dummy byte. Returns snd
   spiBuff[4] = 0xFF;          //Dummy byte. Returns signal RSSI
 
-  furi_hal_spi_bus_tx(spi, spiBuff, 5, timeout);
+  furi_hal_spi_bus_rx(spi, spiBuff, 5, timeout);
 
   furi_hal_spi_release(spi);
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
@@ -699,12 +704,17 @@ int lora_receive_async(u_int8_t* buff, int buffMaxLen) {
   spiBuff[2] = 0xFF;          //Dummy.  Returns loraPacketLength
   spiBuff[3] = 0xFF;          //Dummy.  Returns memory offset (address)
 
-  furi_hal_spi_bus_tx(spi, spiBuff, 4, timeout);
+  //+++++++++++++++++++++++++++++++++++++++++++++
+  furi_hal_spi_bus_rx(spi, spiBuff, 4, timeout);
+  //+++++++++++++++++++++++++++++++++++++++++++++
 
   furi_hal_spi_release(spi);
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
 
   uint8_t payloadLen = spiBuff[2];   // How long the lora packet is
+
+  FURI_LOG_E(TAG,"payloadLen = %d", payloadLen);
+
   uint8_t startAddress = spiBuff[3]; // Where in 1262 memory is the packet stored
 
   // Make sure we don't overflow the buffer if the packet is larger than our buffer
@@ -778,14 +788,67 @@ bool sanityCheck() {
         FURI_LOG_E(TAG,"REGISTER VALUE: %02x",regValue);
         furi_hal_spi_release(spi);
         furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
+
+
+        if(regValue == 0x14){
+          // Initialize the LED pin as output.
+          // GpioModeOutputPushPull means true = 3.3 volts, false = 0 volts.
+          // GpioModeOutputOpenDrain means true = floating, false = 0 volts.
+          furi_hal_gpio_init_simple(pin_beacon, GpioModeOutputPushPull);
+          furi_hal_gpio_write(pin_beacon, true);
+          furi_delay_ms(100);
+          furi_hal_gpio_write(pin_beacon, false);
+          furi_delay_ms(100);
+          furi_hal_gpio_write(pin_beacon, true);
+          furi_delay_ms(100);
+          furi_hal_gpio_write(pin_beacon, false);
+          furi_delay_ms(100);
+        }
+        
         return regValue == 0x14; // Success if we read 0x14 from the register
     } else {
-
         FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
         furi_hal_spi_release(spi);
         furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
         return false;
     }
+}
+
+void printRegisters(uint16_t Start, uint16_t End)
+{
+  //prints the contents of SX126x registers to serial monitor
+
+  uint16_t Loopv1, Loopv2, RegData;
+
+  FURI_LOG_E(TAG,"Reg    0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F");
+  //Serial.print(F("Reg    0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F"));
+  //Serial.println();
+
+  for (Loopv1 = Start; Loopv1 <= End;)           //32 lines
+  {
+    //Serial.print(F("0x"));
+    //Serial.print((Loopv1), HEX);                 //print the register number
+    //Serial.print(F("  "));
+    
+    FURI_LOG_E(TAG,"0x%02x ", Loopv1);
+    
+    for (Loopv2 = 0; Loopv2 <= 15; Loopv2++)
+    {
+      RegData = readRegister(Loopv1);
+      if (RegData < 0x10)
+      {
+        //FURI_LOG_E(TAG,"0"); //Serial.print(F("0"));
+      }
+      //Serial.print(RegData, HEX);                //print the register number
+      //Serial.print(F(" "));
+      
+      FURI_LOG_E(TAG,"0x%02x ", RegData);
+      
+      Loopv1++;
+    }
+    //Serial.println();
+    FURI_LOG_E(TAG,"\n");
+  }
 }
 
 bool begin() {
@@ -796,10 +859,12 @@ bool begin() {
     furi_hal_gpio_init_simple(pin_reset, GpioModeOutputPushPull);
     furi_hal_gpio_init_simple(pin_nss1, GpioModeOutputPushPull);
 
+    furi_hal_gpio_init_simple(pin_beacon, GpioModeOutputPushPull);
+
     furi_hal_gpio_write(pin_nss1, true);
     furi_hal_gpio_write(pin_reset, true);
 
-    //furi_hal_gpio_init_simple(pin_dio1, GpioModeInput);
+    furi_hal_gpio_init_simple(pin_dio1, GpioModeInput);
 
     FURI_LOG_E(TAG,"RESET DEVICE...");
     furi_delay_ms(10);
@@ -810,25 +875,29 @@ bool begin() {
 
     checkBusy();
 
-    //furi_hal_gpio_init(pin_dio1,GpioModeInput,GpioPullUp,GpioSpeedLow);
+    //furi_hal_gpio_init(pin_dio1,GpioModeInput,GpioPullUp,GpioSpeedVeryHigh);
 
     //Ensure SPI communication is working with the radio
     FURI_LOG_E(TAG,"SANITYCHECK...");
     bool success = sanityCheck();
     if (!success) { return false; }
 
+    //printRegisters(0x800, 0x9FF);
+
     //Run the bare-minimum required SPI commands to set up the radio to use
     configureRadioEssentials();
 
-    uint16_t lora_data  = getSyncWord();
+    //uint16_t lora_data  = getSyncWord();
 
-    FURI_LOG_E(TAG," SYNC WORD: %02x", lora_data);
+    //FURI_LOG_E(TAG," SYNC WORD: %02x", lora_data);
 
-    regTest();
+    //regTest();
   
     uint32_t lora_freq  = getFreqInt();
 
     FURI_LOG_E(TAG," FREQUENCY: %ld", lora_freq);
+
+    //printRegisters(0x800, 0x9FF);
 
     return true;  //Return success that we set up the radio
 }

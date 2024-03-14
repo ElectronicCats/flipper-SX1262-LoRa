@@ -22,6 +22,7 @@ void configureRadioEssentials();
 bool begin();
 bool sanityCheck();
 void checkBusy();
+void setModeReceive();
 int lora_receive_async(u_int8_t* buff, int buffMaxLen);
 
 uint8_t receiveBuff[255];
@@ -61,19 +62,7 @@ int32_t main_lora(void* _p) {
 
     begin();
 
-    furi_hal_spi_bus_handle_deinit(spi);
-    
-    spi->cs = &gpio_ext_pa4;
-
-
-    // Initialize the LED pin as output.
-    // GpioModeOutputPushPull means true = 3.3 volts, false = 0 volts.
-    // GpioModeOutputOpenDrain means true = floating, false = 0 volts.
-    furi_hal_gpio_init_simple(pin_led, GpioModeOutputPushPull);
-    furi_hal_gpio_write(pin_led, true);
-    furi_delay_ms(500);
-    furi_hal_gpio_write(pin_led, false);
-    furi_delay_ms(500);
+    //setModeReceive();
 
     while(furi_hal_gpio_read(pin_back)) {
         //Receive a packet over radio
@@ -81,10 +70,14 @@ int32_t main_lora(void* _p) {
 
         if (bytesRead > -1) {
             FURI_LOG_E(TAG,"Packet received... ");
-            //Serial.write(receiveBuff,bytesRead);
-        
+            receiveBuff[bytesRead] = '\0';
+            FURI_LOG_E(TAG,"%s",receiveBuff);       
         }
+        receiveBuff[0] = '\0';
     }
+
+    furi_hal_spi_bus_handle_deinit(spi);
+    spi->cs = &gpio_ext_pa4;
 
     // Typically when a pin is no longer in use, it is set to analog mode.
     furi_hal_gpio_init_simple(pin_led, GpioModeAnalog);
