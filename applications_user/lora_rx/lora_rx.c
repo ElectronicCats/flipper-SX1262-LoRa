@@ -23,7 +23,7 @@ typedef struct {
     VariableItemList* variable_item_list;
     Submenu* submenu;
 
-    bool config_bw;
+    uint8_t config_bw;
     uint8_t config_frequency;
     uint8_t config_sf;
 } LoRaRX;
@@ -34,34 +34,50 @@ typedef enum {
     LoRaRXViewLoRaRX,
 } LoRaRXView;
 
-const bool config_bw_value[] = {
-    true,
-    false,
+const uint8_t config_bw_value[] = {
+    0x00,
+    0x08,
+    0x01,
+    0x09,
+    0x02,
+    0x0A, 
+    0x03,
+    0x04,
+    0x05,
+    0x06,
 };
 const char* const config_bw_text[] = {
-    "1/7",
-    "1/9",
+    "7.81 kHz",
+    "10.42 kHz",
+    "15.63 kHz",
+    "20.83 kHz",
+    "31.25 kHz",
+    "41.67 kHz",
+    "62.50 kHz",
+    "125 kHz",
+    "250 kHz",
+    "500 kHz",
 };
 
 const uint8_t config_sf_value[] = {
-    0b000,
-    0b001,
-    0b010,
-    0b011,
-    0b100,
-    0b101,
-    0b110,
-    0b111,
+    0x05,
+    0x06,
+    0x07,
+    0x08,
+    0x09,
+    0x0A,
+    0x0B,
+    0x0C,
 };
 const char* const config_sf_text[] = {
-    "3.0",
-    "3.5",
-    "4.0",
-    "4.5",
-    "5.0",
-    "5.5",
-    "6.0",
-    "6.5",
+    "SF5",
+    "SF6",
+    "SF7",
+    "SF8",
+    "SF9",
+    "SF10",
+    "SF11",
+    "SF12",
 };
 
 static void lora_rx_submenu_callback(void* context, uint32_t index) {
