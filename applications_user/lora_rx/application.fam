@@ -1,0 +1,11 @@
+App(
+    appid="lora_rx",
+    name="LoRa RX",
+    apptype=FlipperAppType.DEBUG,
+    entry_point="lora_rx_app",
+    requires=["gui"],
+    fap_libs=["u8g2"],
+    stack_size=1 * 1024,
+    order=120,
+    fap_category="Misc",
+)
