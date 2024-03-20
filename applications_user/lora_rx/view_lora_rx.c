@@ -1,5 +1,7 @@
 #include "view_lora_rx.h"
 
+const GpioPin* const pin_led = &gpio_swclk;
+
 typedef struct {
     uint32_t test;
     uint32_t size;
@@ -19,61 +21,12 @@ static void view_lora_rx_draw_callback_intro(Canvas* canvas, void* _model) {
     canvas_draw_str(canvas, 32, 48, "Use (o) to flip");
 }
 
-static void view_lora_rx_draw_callback_fill(Canvas* canvas, void* _model) {
-    ViewLoRaRXModel* model = _model;
-    if(model->flip_flop) {
-        uint8_t width = canvas_width(canvas);
-        uint8_t height = canvas_height(canvas);
-        canvas_draw_box(canvas, 0, 0, width, height);
-    }
-}
-
-static void view_lora_rx_draw_callback_hstripe(Canvas* canvas, void* _model) {
-    ViewLoRaRXModel* model = _model;
-    uint8_t block = 1 + model->size;
-    uint8_t width = canvas_width(canvas);
-    uint8_t height = canvas_height(canvas);
-
-    for(uint8_t y = model->flip_flop * block; y < height; y += 2 * block) {
-        canvas_draw_box(canvas, 0, y, width, block);
-    }
-}
-
-static void view_lora_rx_draw_callback_vstripe(Canvas* canvas, void* _model) {
-    ViewLoRaRXModel* model = _model;
-    uint8_t block = 1 + model->size;
-    uint8_t width = canvas_width(canvas);
-    uint8_t height = canvas_height(canvas);
-
-    for(uint8_t x = model->flip_flop * block; x < width; x += 2 * block) {
-        canvas_draw_box(canvas, x, 0, block, height);
-    }
-}
-
-static void view_lora_rx_draw_callback_check(Canvas* canvas, void* _model) {
-    ViewLoRaRXModel* model = _model;
-    uint8_t block = 1 + model->size;
-    uint8_t width = canvas_width(canvas);
-    uint8_t height = canvas_height(canvas);
-
-    bool flip_flop = model->flip_flop;
-    for(uint8_t x = 0; x < width; x += block) {
-        bool last_flip_flop = flip_flop;
-        for(uint8_t y = 0; y < height; y += block) {
-            if(flip_flop) {
-                canvas_draw_box(canvas, x, y, block, block);
-            }
-            flip_flop = !flip_flop;
-        }
-        if(last_flip_flop == flip_flop) {
-            flip_flop = !flip_flop;
-        }
-    }
-}
-
 static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
     ViewLoRaRXModel* model = _model;
-    uint8_t block = 1 + model->size;
+
+    bool flip_flop = model->flip_flop;
+
+    uint8_t block = 5 + model->size;
     uint8_t width = canvas_width(canvas) - block;
     uint8_t height = canvas_height(canvas) - block;
 
@@ -87,15 +40,21 @@ static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
         y = height - y;
     }
 
+    if(flip_flop) {
+        furi_hal_gpio_write(pin_led, true);
+        furi_delay_ms(50);
+        furi_hal_gpio_write(pin_led, false);
+    }
+
     canvas_draw_box(canvas, x, y, block, block);
 }
 
 const ViewDrawCallback view_lora_rx_tests[] = {
     view_lora_rx_draw_callback_intro,
-    view_lora_rx_draw_callback_fill,
-    view_lora_rx_draw_callback_hstripe,
-    view_lora_rx_draw_callback_vstripe,
-    view_lora_rx_draw_callback_check,
+    // view_lora_rx_draw_callback_fill,
+    // view_lora_rx_draw_callback_hstripe,
+    // view_lora_rx_draw_callback_vstripe,
+    // view_lora_rx_draw_callback_check,
     view_lora_rx_draw_callback_move,
 };
 
@@ -141,6 +100,11 @@ static bool view_lora_rx_input_callback(InputEvent* event, void* context) {
 static void view_lora_rx_enter(void* context) {
     ViewLoRaRX* instance = context;
     furi_timer_start(instance->timer, furi_kernel_get_tick_frequency() / 32);
+
+    // Initialize the LED pin as output.
+    // GpioModeOutputPushPull means true = 3.3 volts, false = 0 volts.
+    // GpioModeOutputOpenDrain means true = floating, false = 0 volts.
+    furi_hal_gpio_init_simple(pin_led, GpioModeOutputPushPull);
 }
 
 static void view_lora_rx_exit(void* context) {

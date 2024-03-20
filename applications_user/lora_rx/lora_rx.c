@@ -102,11 +102,6 @@ static void lora_rx_reload_config(LoRaRX* instance) {
         instance->config_frequency,
         instance->config_sf,
         instance->config_bw);
-    // u8x8_d_st756x_init(
-    //     &instance->gui->canvas->fb.u8x8,
-    //     instance->config_frequency,
-    //     instance->config_sf,
-    //     instance->config_bw);
 }
 
 static void lora_config_set_bw(VariableItem* item) {
@@ -130,7 +125,7 @@ static void lora_config_set_frequency(VariableItem* item) {
     uint8_t index = variable_item_get_current_value_index(item);
     FuriString* temp;
     temp = furi_string_alloc();
-    furi_string_cat_printf(temp, "%d", index);
+    furi_string_cat_printf(temp, "%d", index + 883);
     variable_item_set_current_value_text(item, furi_string_get_cstr(temp));
     furi_string_free(temp);
     instance->config_frequency = index;
@@ -162,14 +157,14 @@ LoRaRX* lora_rx_alloc() {
 
     // Configuration items
     VariableItem* item;
-    instance->config_bw = false;
+    instance->config_bw = 0x04;
     instance->config_frequency = 32;
-    instance->config_sf = 0b101;
+    instance->config_sf = 0x08;
     // Frequency
     item = variable_item_list_add(
         instance->variable_item_list, "Frequency:", 64, lora_config_set_frequency, instance);
     variable_item_set_current_value_index(item, 32);
-    variable_item_set_current_value_text(item, "32");
+    variable_item_set_current_value_text(item, "915");
     // Band Width
     item = variable_item_list_add(
         instance->variable_item_list,
@@ -177,8 +172,8 @@ LoRaRX* lora_rx_alloc() {
         COUNT_OF(config_bw_value),
         lora_config_set_bw,
         instance);
-    variable_item_set_current_value_index(item, 1);
-    variable_item_set_current_value_text(item, config_bw_text[1]);
+    variable_item_set_current_value_index(item, 7);
+    variable_item_set_current_value_text(item, config_bw_text[7]);
     // Spread Factor
     item = variable_item_list_add(
         instance->variable_item_list,
@@ -186,8 +181,8 @@ LoRaRX* lora_rx_alloc() {
         COUNT_OF(config_sf_value),
         lora_config_set_sf,
         instance);
-    variable_item_set_current_value_index(item, 5);
-    variable_item_set_current_value_text(item, config_sf_text[5]);
+    variable_item_set_current_value_index(item, 3);
+    variable_item_set_current_value_text(item, config_sf_text[3]);
 
     // Menu
     instance->submenu = submenu_alloc();
