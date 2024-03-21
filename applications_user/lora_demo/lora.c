@@ -567,6 +567,50 @@ bool waitForRadioCommandCompletion(uint32_t timeout) {
   return true;
 }
 
+/* Set the bandwidth (basically, this is how big the frequency span is that we occupy)
+Bigger bandwidth allows us to transmit large amounts of data faster, but it occupies a larger span of frequencies.
+Smaller bandwidth takes longer to transmit large amounts of data, but its less likely to collide with other frequencies.
+
+Available bandwidth settings, pulled from datasheet 13.4.5.2
+SETTING.   | Bandwidth
+------------+-----------
+0x00     |    7.81khz
+0x08     |   10.42khz
+0x01     |   15.63khz
+0x09     |   20.83khz
+0x02     |   31.25khz
+0x0A     |   41.67khz
+0x03     |   62.50khz
+0x04     |  125.00khz
+0x05     |  250.00khz (default)
+0x06     |  500.00khz
+*/
+bool configSetBandwidth(int bw) {
+  if (bw < 0 || bw > 0x0A || bw == 7) { return false; }
+  bandwidth = bw;
+  updateModulationParameters();
+  return true;
+}
+
+/* Set the coding rate*/
+bool configSetCodingRate(int cr) {
+  // Coding rate must be 1-4 (inclusive)
+  if (cr < 1 || cr > 4) { return false; }
+  codingRate = cr;
+  updateModulationParameters();
+  return true;
+}
+
+/* Change the spreading factor of a packet 
+The higher the spreading factor, the slower and more reliable the transmission will be. */
+bool configSetSpreadingFactor(int sf) {
+  if (sf< 5 || sf > 12) { return false; }
+  lowDataRateOptimize = (sf >= 11) ? 1 : 0;  // Turn on for SF11+SF12, turn off for anything else
+  spreadingFactor = sf;
+  updateModulationParameters();
+  return true;
+}
+
 //Sets the radio into receive mode, allowing it to listen for incoming packets.
 //If radio is already in receive mode, this does nothing.
 //There's no such thing as "setModeTransmit" because it is set automatically when transmit() is called
@@ -627,6 +671,91 @@ void setModeReceive() {
   // Remember that we're in receive mode so we don't need to run this code again unnecessarily
   inReceiveMode = true;
   FURI_LOG_E(TAG," inReceiveMode = true");
+}
+
+/* Set radio into standby mode.
+Switching directly from Rx to Tx mode can be slow, so we first want to go into standby */
+void setModeStandby() {
+  // Tell the chip to wait for it to receive a packet.
+  // Based on our previous config, this should throw an interrupt when we get a packet
+  furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
+
+  spiBuff[0] = 0x80;          //0x80 is the opcode for "SetStandby"
+  spiBuff[1] = 0x01;          //0x00 = STDBY_RC, 0x01=STDBY_XOSC
+
+  furi_hal_spi_acquire(spi);
+  furi_hal_spi_bus_tx(spi, spiBuff, 2, timeout);
+  furi_hal_spi_release(spi);
+
+  furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
+  waitForRadioCommandCompletion(100);
+  inReceiveMode = false;  // No longer in receive mode
+}
+
+void transmit(uint8_t *data, int dataLen) {
+  // Max lora packet size is 255 bytes
+  if (dataLen > 255) { dataLen = 255;}
+
+  // Switching directly from rx to tx mode is slow. Go to standby first
+  if (inReceiveMode) {
+    setModeStandby();
+  }
+
+  furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
+
+  spiBuff[0] = 0x8C;          // Opcode for "SetPacketParameters"
+  spiBuff[1] = 0x00;          // PacketParam1 = Preamble Len MSB
+  spiBuff[2] = 0x0C;          // PacketParam2 = Preamble Len LSB
+  spiBuff[3] = 0x00;          // PacketParam3 = Header Type. 0x00 = Variable Len, 0x01 = Fixed Length
+  spiBuff[4] = dataLen;       // PacketParam4 = Payload Length (Max is 255 bytes)
+  spiBuff[5] = 0x00;          // PacketParam5 = CRC Type. 0x00 = Off, 0x01 = on
+  spiBuff[6] = 0x00;          // PacketParam6 = Invert IQ.  0x00 = Standard, 0x01 = Inverted
+
+  furi_hal_spi_acquire(spi);
+  furi_hal_spi_bus_tx(spi, spiBuff, 7, timeout);
+  furi_hal_spi_release(spi);
+
+  furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
+  waitForRadioCommandCompletion(100);  // Give time for radio to process the command
+
+  // Write the payload to the buffer
+  // Reminder: PayloadLength is defined in setPacketParams
+  furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
+
+  spiBuff[0] = 0x0E,          //Opcode for WriteBuffer command
+  spiBuff[1] = 0x00;          //Dummy byte before writing payload
+
+  furi_hal_spi_acquire(spi);
+  furi_hal_spi_bus_tx(spi, spiBuff, 2, timeout);
+
+  // Transmit data in chunks to avoid overwriting the original buffer
+  uint8_t size = sizeof(spiBuff);
+  for (uint16_t i = 0; i < dataLen; i += size) {
+    if (i + size > dataLen) { size = dataLen - i; }
+    furi_hal_spi_bus_tx(spi, data + i, size, timeout); // Write the payload itself
+  }
+
+  furi_hal_spi_release(spi);
+  furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
+  waitForRadioCommandCompletion(1000);   // Give time for radio to process the command
+
+  // Transmit
+  furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
+
+  spiBuff[0] = 0x83;          // Opcode for SetTx command
+  spiBuff[1] = 0xFF;          // Timeout (3-byte number)
+  spiBuff[2] = 0xFF;          // Timeout (3-byte number)
+  spiBuff[3] = 0xFF;          // Timeout (3-byte number)
+
+  furi_hal_spi_acquire(spi);
+  furi_hal_spi_bus_tx(spi, spiBuff, 4, timeout);
+  furi_hal_spi_release(spi);
+
+  furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
+  waitForRadioCommandCompletion(transmitTimeout); // Wait for tx to complete, with a timeout so we don't wait forever
+
+  // Remember that we are in Tx mode.  If we want to receive a packet, we need to switch into receiving mode
+  inReceiveMode = false;
 }
 
 /*Receive a packet if available
