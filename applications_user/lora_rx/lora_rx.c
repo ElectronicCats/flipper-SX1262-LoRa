@@ -14,7 +14,22 @@
 
 #include "view_lora_rx.h"
 
+static FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
+
+const GpioPin* const pin_led = &gpio_swclk;
+const GpioPin* const pin_back = &gpio_button_back;
+
 #define TAG "LoRaRX"
+
+void abandone();
+void configureRadioEssentials();
+bool begin();
+bool sanityCheck();
+void checkBusy();
+void setModeReceive();
+int lora_receive_async(u_int8_t* buff, int buffMaxLen);
+
+uint8_t receiveBuff[255];
 
 typedef struct {
     Gui* gui;
@@ -232,11 +247,25 @@ int32_t lora_rx_run(LoRaRX* instance) {
 int32_t lora_rx_app(void* p) {
     UNUSED(p);
 
+    spi->cs = &gpio_ext_pc0;
+
+    furi_hal_spi_bus_handle_init(spi);
+
+    abandone();
+
+    begin();
+
     LoRaRX* instance = lora_rx_alloc();
 
     int32_t ret = lora_rx_run(instance);
 
     lora_rx_free(instance);
+
+    furi_hal_spi_bus_handle_deinit(spi);
+    spi->cs = &gpio_ext_pa4;
+
+    // Typically when a pin is no longer in use, it is set to analog mode.
+    furi_hal_gpio_init_simple(pin_led, GpioModeAnalog);
 
     return ret;
 }

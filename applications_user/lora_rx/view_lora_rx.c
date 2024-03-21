@@ -1,6 +1,6 @@
 #include "view_lora_rx.h"
 
-const GpioPin* const pin_led = &gpio_swclk;
+const GpioPin* const test_led = &gpio_swclk;
 
 typedef struct {
     uint32_t test;
@@ -41,9 +41,9 @@ static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
     }
 
     if(flip_flop) {
-        furi_hal_gpio_write(pin_led, true);
+        furi_hal_gpio_write(test_led, true);
         furi_delay_ms(50);
-        furi_hal_gpio_write(pin_led, false);
+        furi_hal_gpio_write(test_led, false);
     }
 
     canvas_draw_box(canvas, x, y, block, block);
@@ -104,7 +104,7 @@ static void view_lora_rx_enter(void* context) {
     // Initialize the LED pin as output.
     // GpioModeOutputPushPull means true = 3.3 volts, false = 0 volts.
     // GpioModeOutputOpenDrain means true = floating, false = 0 volts.
-    furi_hal_gpio_init_simple(pin_led, GpioModeOutputPushPull);
+    furi_hal_gpio_init_simple(test_led, GpioModeOutputPushPull);
 }
 
 static void view_lora_rx_exit(void* context) {
