@@ -28,6 +28,9 @@ bool sanityCheck();
 void checkBusy();
 void setModeReceive();
 int lora_receive_async(u_int8_t* buff, int buffMaxLen);
+bool configSetFrequency(long frequencyInHz);
+bool configSetBandwidth(int bw);
+bool configSetSpreadingFactor(int sf);
 
 uint8_t receiveBuff[255];
 
@@ -124,6 +127,9 @@ static void lora_config_set_bw(VariableItem* item) {
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, config_bw_text[index]);
     instance->config_bw = config_bw_value[index];
+
+    configSetBandwidth(config_bw_value[index]);
+
     lora_rx_reload_config(instance);
 }
 
@@ -132,6 +138,9 @@ static void lora_config_set_sf(VariableItem* item) {
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, config_sf_text[index]);
     instance->config_sf = config_sf_value[index];
+
+    configSetSpreadingFactor(config_sf_value[index]);
+
     lora_rx_reload_config(instance);
 }
 
@@ -144,6 +153,9 @@ static void lora_config_set_frequency(VariableItem* item) {
     variable_item_set_current_value_text(item, furi_string_get_cstr(temp));
     furi_string_free(temp);
     instance->config_frequency = index;
+
+    configSetFrequency((index + 883)*1000000);
+
     lora_rx_reload_config(instance);
 }
 
