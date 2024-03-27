@@ -2,9 +2,9 @@
 #include <furi_hal.h>
 #include <storage/storage.h>
 
-#include "view_lora_rx.h"
+#include "view_lora_tx.h"
 
-#define TAG "RX "
+#define TAG "TX "
 
 const GpioPin* const test_led = &gpio_swclk;
 
@@ -18,14 +18,14 @@ typedef struct {
     uint32_t size;
     uint32_t counter;
     bool flip_flop;
-} ViewLoRaRXModel;
+} ViewLoRaTXModel;
 
-struct ViewLoRaRX {
+struct ViewLoRaTX {
     View* view;
     FuriTimer* timer;
 };
 
-static void view_lora_rx_draw_callback_intro(Canvas* canvas, void* _model) {
+static void view_lora_tx_draw_callback_intro(Canvas* canvas, void* _model) {
     UNUSED(_model);
     canvas_draw_str(canvas, 12, 24, "Use < and > to switch tests");
     canvas_draw_str(canvas, 12, 36, "Use ^ and v to switch size");
@@ -42,8 +42,8 @@ void bytesToAscii(uint8_t* buffer, uint8_t length) {
     FURI_LOG_E(TAG,"OUT bytesToAscii ");
 }
 
-static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
-    ViewLoRaRXModel* model = _model;
+static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
+    ViewLoRaTXModel* model = _model;
 
     bool flip_flop = model->flip_flop;
 
@@ -96,35 +96,35 @@ static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
 
 }
 
-const ViewDrawCallback view_lora_rx_tests[] = {
-    view_lora_rx_draw_callback_intro,
-    // view_lora_rx_draw_callback_fill,
-    // view_lora_rx_draw_callback_hstripe,
-    // view_lora_rx_draw_callback_vstripe,
-    // view_lora_rx_draw_callback_check,
-    view_lora_rx_draw_callback_move,
+const ViewDrawCallback view_lora_tx_tests[] = {
+    view_lora_tx_draw_callback_intro,
+    // view_lora_tx_draw_callback_fill,
+    // view_lora_tx_draw_callback_hstripe,
+    // view_lora_tx_draw_callback_vstripe,
+    // view_lora_tx_draw_callback_check,
+    view_lora_tx_draw_callback_move,
 };
 
-static void view_lora_rx_draw_callback(Canvas* canvas, void* _model) {
-    ViewLoRaRXModel* model = _model;
-    view_lora_rx_tests[model->test](canvas, _model);
+static void view_lora_tx_draw_callback(Canvas* canvas, void* _model) {
+    ViewLoRaTXModel* model = _model;
+    view_lora_tx_tests[model->test](canvas, _model);
 }
 
-static bool view_lora_rx_input_callback(InputEvent* event, void* context) {
-    ViewLoRaRX* instance = context;
+static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
+    ViewLoRaTX* instance = context;
 
     bool consumed = false;
     if(event->type == InputTypeShort || event->type == InputTypeRepeat) {
         with_view_model(
             instance->view,
-            ViewLoRaRXModel * model,
+            ViewLoRaTXModel * model,
             {
                 if(event->key == InputKeyLeft && model->test > 0) {
                     model->test--;
                     consumed = true;
                 } else if(
                     event->key == InputKeyRight &&
-                    model->test < (COUNT_OF(view_lora_rx_tests) - 1)) {
+                    model->test < (COUNT_OF(view_lora_tx_tests) - 1)) {
                     model->test++;
                     consumed = true;
                 } else if(event->key == InputKeyDown && model->size > 0) {
@@ -144,8 +144,8 @@ static bool view_lora_rx_input_callback(InputEvent* event, void* context) {
     return consumed;
 }
 
-static void view_lora_rx_enter(void* context) {
-    ViewLoRaRX* instance = context;
+static void view_lora_tx_enter(void* context) {
+    ViewLoRaTX* instance = context;
     furi_timer_start(instance->timer, furi_kernel_get_tick_frequency() / 32);
 
     // Initialize the LED pin as output.
@@ -154,35 +154,35 @@ static void view_lora_rx_enter(void* context) {
     furi_hal_gpio_init_simple(test_led, GpioModeOutputPushPull);
 }
 
-static void view_lora_rx_exit(void* context) {
-    ViewLoRaRX* instance = context;
+static void view_lora_tx_exit(void* context) {
+    ViewLoRaTX* instance = context;
     furi_timer_stop(instance->timer);
 }
 
-static void view_lora_rx_timer_callback(void* context) {
-    ViewLoRaRX* instance = context;
+static void view_lora_tx_timer_callback(void* context) {
+    ViewLoRaTX* instance = context;
     with_view_model(
-        instance->view, ViewLoRaRXModel * model, { model->counter++; }, true);
+        instance->view, ViewLoRaTXModel * model, { model->counter++; }, true);
 }
 
-ViewLoRaRX* view_lora_rx_alloc() {
-    ViewLoRaRX* instance = malloc(sizeof(ViewLoRaRX));
+ViewLoRaTX* view_lora_tx_alloc() {
+    ViewLoRaTX* instance = malloc(sizeof(ViewLoRaTX));
 
     instance->view = view_alloc();
     view_set_context(instance->view, instance);
-    view_allocate_model(instance->view, ViewModelTypeLockFree, sizeof(ViewLoRaRXModel));
-    view_set_draw_callback(instance->view, view_lora_rx_draw_callback);
-    view_set_input_callback(instance->view, view_lora_rx_input_callback);
-    view_set_enter_callback(instance->view, view_lora_rx_enter);
-    view_set_exit_callback(instance->view, view_lora_rx_exit);
+    view_allocate_model(instance->view, ViewModelTypeLockFree, sizeof(ViewLoRaTXModel));
+    view_set_draw_callback(instance->view, view_lora_tx_draw_callback);
+    view_set_input_callback(instance->view, view_lora_tx_input_callback);
+    view_set_enter_callback(instance->view, view_lora_tx_enter);
+    view_set_exit_callback(instance->view, view_lora_tx_exit);
 
     instance->timer =
-        furi_timer_alloc(view_lora_rx_timer_callback, FuriTimerTypePeriodic, instance);
+        furi_timer_alloc(view_lora_tx_timer_callback, FuriTimerTypePeriodic, instance);
 
     return instance;
 }
 
-void view_lora_rx_free(ViewLoRaRX* instance) {
+void view_lora_tx_free(ViewLoRaTX* instance) {
     furi_assert(instance);
 
     furi_timer_free(instance->timer);
@@ -190,7 +190,7 @@ void view_lora_rx_free(ViewLoRaRX* instance) {
     free(instance);
 }
 
-View* view_lora_rx_get_view(ViewLoRaRX* instance) {
+View* view_lora_tx_get_view(ViewLoRaTX* instance) {
     furi_assert(instance);
     return instance->view;
 }

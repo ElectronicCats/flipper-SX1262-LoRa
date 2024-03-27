@@ -1,7 +1,8 @@
 #include "lora_rx.h"
 
-#include <furi_hal.h>
 #include <furi.h>
+#include <furi_hal.h>
+
 
 // Need access to u8g2
 #include <gui/gui_i.h>
@@ -32,8 +33,6 @@ bool configSetFrequency(long frequencyInHz);
 bool configSetBandwidth(int bw);
 bool configSetSpreadingFactor(int sf);
 
-uint8_t receiveBuff[255];
-
 typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
@@ -50,6 +49,8 @@ typedef enum {
     LoRaRXViewSubmenu,
     LoRaRXViewConfigure,
     LoRaRXViewLoRaRX,
+    // LoRaRXViewLoRaTX,
+    // LoRaRXViewLoRaAbout,
 } LoRaRXView;
 
 const uint8_t config_bw_value[] = {
@@ -170,17 +171,23 @@ LoRaRX* lora_rx_alloc() {
     view_dispatcher_attach_to_gui(
         instance->view_dispatcher, instance->gui, ViewDispatcherTypeFullscreen);
 
-    // Test
-    instance->view_lora_rx = view_lora_rx_alloc();
-    view = view_lora_rx_get_view(instance->view_lora_rx);
-    view_set_previous_callback(view, lora_rx_previous_callback);
-    view_dispatcher_add_view(instance->view_dispatcher, LoRaRXViewLoRaRX, view);
-
     // Configure
     instance->variable_item_list = variable_item_list_alloc();
     view = variable_item_list_get_view(instance->variable_item_list);
     view_set_previous_callback(view, lora_rx_previous_callback);
     view_dispatcher_add_view(instance->view_dispatcher, LoRaRXViewConfigure, view);
+
+    // RX
+    instance->view_lora_rx = view_lora_rx_alloc();
+    view = view_lora_rx_get_view(instance->view_lora_rx);
+    view_set_previous_callback(view, lora_rx_previous_callback);
+    view_dispatcher_add_view(instance->view_dispatcher, LoRaRXViewLoRaRX, view);
+
+    // // TX
+    // instance->view_lora_tx = view_lora_tx_alloc();
+    // view = view_lora_rx_get_view(instance->view_lora_rx);
+    // view_set_previous_callback(view, lora_rx_previous_callback);
+    // view_dispatcher_add_view(instance->view_dispatcher, LoRaRXViewLoRaTX, view);
 
     // Configuration items
     VariableItem* item;
@@ -218,17 +225,28 @@ LoRaRX* lora_rx_alloc() {
     view_dispatcher_add_view(instance->view_dispatcher, LoRaRXViewSubmenu, view);
     submenu_add_item(
         instance->submenu,
-        "RX",
-        LoRaRXViewLoRaRX,
+        "Config",
+        LoRaRXViewConfigure,
         lora_rx_submenu_callback,
         instance);
     submenu_add_item(
         instance->submenu,
-        "Configure",
-        LoRaRXViewConfigure,
+        "Receive Signals",
+        LoRaRXViewLoRaRX,
         lora_rx_submenu_callback,
         instance);
-
+    // submenu_add_item(
+    //     instance->submenu,
+    //     "Transmit Signals",
+    //     LoRaRXViewLoRaTX,
+    //     lora_rx_submenu_callback,
+    //     instance);
+    // submenu_add_item(
+    //     instance->submenu,
+    //     "About",
+    //     LoRaRXViewLoRaAbout,
+    //     lora_rx_submenu_callback,
+    //     instance);    
     return instance;
 }
 
@@ -241,6 +259,12 @@ void lora_rx_free(LoRaRX* instance) {
 
     view_dispatcher_remove_view(instance->view_dispatcher, LoRaRXViewLoRaRX);
     view_lora_rx_free(instance->view_lora_rx);
+
+    // view_dispatcher_remove_view(instance->view_dispatcher, LoRaRXViewLoRaTX);
+    // variable_item_list_free(instance->variable_item_list);
+
+    // view_dispatcher_remove_view(instance->view_dispatcher, LoRaRXViewLoRaAbout);
+    // view_lora_rx_free(instance->view_lora_rx);
 
     view_dispatcher_free(instance->view_dispatcher);
     furi_record_close(RECORD_GUI);
