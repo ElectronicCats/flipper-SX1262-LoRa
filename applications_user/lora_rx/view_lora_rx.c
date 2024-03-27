@@ -1,7 +1,6 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <storage/storage.h>
-
 #include "view_lora_rx.h"
 
 #define TAG "RX "

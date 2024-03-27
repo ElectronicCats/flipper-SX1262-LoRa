@@ -12,8 +12,13 @@
 #include <gui/view_dispatcher.h>
 #include <gui/modules/submenu.h>
 #include <gui/modules/variable_item_list.h>
+#include <dialogs/dialogs.h>
+
+#include <storage/storage.h>
 
 #include "view_lora_rx.h"
+
+#define LORA_APP_FOLDER "apps_data/lora"
 
 static FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
 
@@ -37,8 +42,14 @@ typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
     ViewLoRaRX* view_lora_rx;
+
+    DialogsApp* dialogs;
+
     VariableItemList* variable_item_list;
     Submenu* submenu;
+
+    Storage* storage;
+    File* capture_file;
 
     uint8_t config_bw;
     uint8_t config_frequency;
@@ -98,6 +109,14 @@ const char* const config_sf_text[] = {
     "SF11",
     "SF12",
 };
+
+void lora_make_app_folder(LoRaRX* instance) {
+    furi_assert(instance);
+
+    if(!storage_simply_mkdir(instance->storage, LORA_APP_FOLDER)) {
+        dialog_message_show_storage_error(instance->dialogs, "Cannot create\napp folder");
+    }
+}
 
 static void lora_rx_submenu_callback(void* context, uint32_t index) {
     LoRaRX* instance = (LoRaRX*)context;
@@ -165,7 +184,13 @@ LoRaRX* lora_rx_alloc() {
 
     View* view = NULL;
 
+    instance->dialogs = furi_record_open(RECORD_DIALOGS);
     instance->gui = furi_record_open(RECORD_GUI);
+    
+    instance->storage = furi_record_open(RECORD_STORAGE);
+    instance->capture_file = storage_file_alloc(instance->storage);
+
+
     instance->view_dispatcher = view_dispatcher_alloc();
     view_dispatcher_enable_queue(instance->view_dispatcher);
     view_dispatcher_attach_to_gui(
