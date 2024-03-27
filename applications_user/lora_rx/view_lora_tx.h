@@ -1,4 +1,4 @@
-#pragma oncerx
+#pragma once
 
 #include <stdint.h>
 #include <gui/view.h>

@@ -6,12 +6,9 @@
 
 #define TAG "TX "
 
-const GpioPin* const test_led = &gpio_swclk;
+const GpioPin* const tx_led = &gpio_swclk;
 
-int lora_receive_async(u_int8_t* buff, int buffMaxLen);
-
-uint8_t receiveBuff[255];
-char asciiBuff[255];
+//int lora_receive_async(u_int8_t* buff, int buffMaxLen);
 
 typedef struct {
     uint32_t test;
@@ -32,15 +29,6 @@ static void view_lora_tx_draw_callback_intro(Canvas* canvas, void* _model) {
     canvas_draw_str(canvas, 32, 48, "Use (o) to flip");
 }
 
-void bytesToAscii(uint8_t* buffer, uint8_t length) {
-    uint8_t i;
-    for (i = 0; i < length; ++i) {
-        asciiBuff[i * 2] = "0123456789ABCDEF"[buffer[i] >> 4]; // High nibble
-        asciiBuff[i * 2 + 1] = "0123456789ABCDEF"[buffer[i] & 0x0F]; // Low nibble
-    }
-    asciiBuff[length * 2] = '\0'; // Null-terminate the string
-    FURI_LOG_E(TAG,"OUT bytesToAscii ");
-}
 
 static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
     ViewLoRaTXModel* model = _model;
@@ -62,38 +50,19 @@ static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
     }
 
     if(flip_flop) {
-        furi_hal_gpio_write(test_led, true);
+        furi_hal_gpio_write(tx_led, true);
         furi_delay_ms(50);
-        furi_hal_gpio_write(test_led, false);
+        furi_hal_gpio_write(tx_led, false);
     }
 
     canvas_draw_box(canvas, x, y, block, block);
 
-    canvas_draw_str(canvas, 12, 12, "Packet received...");
+    canvas_draw_str(canvas, 12, 12, "HELL TX...");
 
-    //Receive a packet over radio
-    int bytesRead = lora_receive_async(receiveBuff, sizeof(receiveBuff));
-
-    if (bytesRead > -1) {
-        FURI_LOG_E(TAG,"Packet received... ");
-        receiveBuff[bytesRead] = '\0';        
-
-        FURI_LOG_E(TAG,"%s",receiveBuff);  
-        bytesToAscii(receiveBuff, 16);
-        asciiBuff[17] = '.';
-        asciiBuff[18] = '.';
-        asciiBuff[19] = '.';
-        asciiBuff[20] = '\0';    
-    }
+    // 
 
 
-    canvas_draw_str(canvas, 12, 24, asciiBuff);
     canvas_draw_str(canvas, 12, 36, "ASCII:");
-    canvas_draw_str(canvas, 12, 48, (const char*)receiveBuff);//(char*)receiveBuff);
-    
-
-    //receiveBuff[0] = '\0';
-
 }
 
 const ViewDrawCallback view_lora_tx_tests[] = {
@@ -151,7 +120,7 @@ static void view_lora_tx_enter(void* context) {
     // Initialize the LED pin as output.
     // GpioModeOutputPushPull means true = 3.3 volts, false = 0 volts.
     // GpioModeOutputOpenDrain means true = floating, false = 0 volts.
-    furi_hal_gpio_init_simple(test_led, GpioModeOutputPushPull);
+    furi_hal_gpio_init_simple(tx_led, GpioModeOutputPushPull);
 }
 
 static void view_lora_tx_exit(void* context) {
