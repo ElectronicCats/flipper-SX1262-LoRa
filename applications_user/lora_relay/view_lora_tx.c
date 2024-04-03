@@ -8,8 +8,6 @@
 
 const GpioPin* const tx_led = &gpio_swclk;
 
-//int lora_receive_async(u_int8_t* buff, int buffMaxLen);
-
 typedef struct {
     uint32_t test;
     uint32_t size;
@@ -28,7 +26,6 @@ static void view_lora_tx_draw_callback_intro(Canvas* canvas, void* _model) {
     canvas_draw_str(canvas, 12, 36, "Use ^ and v to switch size");
     canvas_draw_str(canvas, 32, 48, "Use (o) to flip");
 }
-
 
 static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
     ViewLoRaTXModel* model = _model;

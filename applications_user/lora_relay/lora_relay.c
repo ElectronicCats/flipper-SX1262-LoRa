@@ -17,6 +17,7 @@
 #include <storage/storage.h>
 
 #include "view_lora_rx.h"
+#include "view_lora_tx.h"
 
 #define LORA_APP_FOLDER "apps_data/lora"
 
@@ -25,7 +26,7 @@ static FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
 const GpioPin* const pin_led = &gpio_swclk;
 const GpioPin* const pin_back = &gpio_button_back;
 
-#define TAG "LoRaRX"
+#define TAG "LoRaRelay"
 
 void abandone();
 void configureRadioEssentials();
@@ -42,27 +43,28 @@ typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
     ViewLoRaRX* view_lora_rx;
+    ViewLoRaTX* view_lora_tx;
 
     DialogsApp* dialogs;
 
     VariableItemList* variable_item_list;
     Submenu* submenu;
 
-    Storage* storage;
-    File* capture_file;
+    // Storage* storage;
+    // File* capture_file;
 
     uint8_t config_bw;
     uint8_t config_frequency;
     uint8_t config_sf;
-} LoRaRX;
+} LoRaRelay;
 
 typedef enum {
-    LoRaRXViewSubmenu,
-    LoRaRXViewConfigure,
-    LoRaRXViewLoRaRX,
-    // LoRaRXViewLoRaTX,
-    // LoRaRXViewLoRaAbout,
-} LoRaRXView;
+    LoRaRelayViewSubmenu,
+    LoRaRelayViewConfigure,
+    LoRaRelayViewLoRaRX,
+    LoRaRelayViewLoRaTX,
+    // LoRaRelayViewLoRaAbout,
+} LoRaRelayView;
 
 const uint8_t config_bw_value[] = {
     0x00,
@@ -110,22 +112,22 @@ const char* const config_sf_text[] = {
     "SF12",
 };
 
-void lora_make_app_folder(LoRaRX* instance) {
-    furi_assert(instance);
+// void lora_make_app_folder(LoRaRelay* instance) {
+//     furi_assert(instance);
 
-    if(!storage_simply_mkdir(instance->storage, LORA_APP_FOLDER)) {
-        dialog_message_show_storage_error(instance->dialogs, "Cannot create\napp folder");
-    }
-}
+//     if(!storage_simply_mkdir(instance->storage, LORA_APP_FOLDER)) {
+//         dialog_message_show_storage_error(instance->dialogs, "Cannot create\napp folder");
+//     }
+// }
 
 static void lora_relay_submenu_callback(void* context, uint32_t index) {
-    LoRaRX* instance = (LoRaRX*)context;
+    LoRaRelay* instance = (LoRaRelay*)context;
     view_dispatcher_switch_to_view(instance->view_dispatcher, index);
 }
 
 static uint32_t lora_relay_previous_callback(void* context) {
     UNUSED(context);
-    return LoRaRXViewSubmenu;
+    return LoRaRelayViewSubmenu;
 }
 
 static uint32_t lora_relay_exit_callback(void* context) {
@@ -133,7 +135,7 @@ static uint32_t lora_relay_exit_callback(void* context) {
     return VIEW_NONE;
 }
 
-static void lora_relay_reload_config(LoRaRX* instance) {
+static void lora_relay_reload_config(LoRaRelay* instance) {
     FURI_LOG_I(
         TAG,
         "frequency: %d, sf: %d, bw: %d",
@@ -143,7 +145,7 @@ static void lora_relay_reload_config(LoRaRX* instance) {
 }
 
 static void lora_config_set_bw(VariableItem* item) {
-    LoRaRX* instance = variable_item_get_context(item);
+    LoRaRelay* instance = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, config_bw_text[index]);
     instance->config_bw = config_bw_value[index];
@@ -154,7 +156,7 @@ static void lora_config_set_bw(VariableItem* item) {
 }
 
 static void lora_config_set_sf(VariableItem* item) {
-    LoRaRX* instance = variable_item_get_context(item);
+    LoRaRelay* instance = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, config_sf_text[index]);
     instance->config_sf = config_sf_value[index];
@@ -165,7 +167,7 @@ static void lora_config_set_sf(VariableItem* item) {
 }
 
 static void lora_config_set_frequency(VariableItem* item) {
-    LoRaRX* instance = variable_item_get_context(item);
+    LoRaRelay* instance = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
     FuriString* temp;
     temp = furi_string_alloc();
@@ -179,17 +181,16 @@ static void lora_config_set_frequency(VariableItem* item) {
     lora_relay_reload_config(instance);
 }
 
-LoRaRX* lora_relay_alloc() {
-    LoRaRX* instance = malloc(sizeof(LoRaRX));
+LoRaRelay* lora_relay_alloc() {
+    LoRaRelay* instance = malloc(sizeof(LoRaRelay));
 
     View* view = NULL;
 
     instance->gui = furi_record_open(RECORD_GUI);
-    instance->dialogs = furi_record_open(RECORD_DIALOGS);
-    instance->storage = furi_record_open(RECORD_STORAGE);
+    // instance->dialogs = furi_record_open(RECORD_DIALOGS);
+    // instance->storage = furi_record_open(RECORD_STORAGE);
 
-    instance->capture_file = storage_file_alloc(instance->storage);
-
+    // instance->capture_file = storage_file_alloc(instance->storage);
 
     instance->view_dispatcher = view_dispatcher_alloc();
     view_dispatcher_enable_queue(instance->view_dispatcher);
@@ -200,19 +201,19 @@ LoRaRX* lora_relay_alloc() {
     instance->variable_item_list = variable_item_list_alloc();
     view = variable_item_list_get_view(instance->variable_item_list);
     view_set_previous_callback(view, lora_relay_previous_callback);
-    view_dispatcher_add_view(instance->view_dispatcher, LoRaRXViewConfigure, view);
+    view_dispatcher_add_view(instance->view_dispatcher, LoRaRelayViewConfigure, view);
 
     // RX
     instance->view_lora_rx = view_lora_rx_alloc();
     view = view_lora_rx_get_view(instance->view_lora_rx);
     view_set_previous_callback(view, lora_relay_previous_callback);
-    view_dispatcher_add_view(instance->view_dispatcher, LoRaRXViewLoRaRX, view);
+    view_dispatcher_add_view(instance->view_dispatcher, LoRaRelayViewLoRaRX, view);
 
-    // // TX
-    // instance->view_lora_tx = view_lora_tx_alloc();
-    // view = view_lora_relay_get_view(instance->view_lora_rx);
-    // view_set_previous_callback(view, lora_relay_previous_callback);
-    // view_dispatcher_add_view(instance->view_dispatcher, LoRaRXViewLoRaTX, view);
+    // TX
+    instance->view_lora_tx = view_lora_tx_alloc();
+    view = view_lora_tx_get_view(instance->view_lora_tx);
+    view_set_previous_callback(view, lora_relay_previous_callback);
+    view_dispatcher_add_view(instance->view_dispatcher, LoRaRelayViewLoRaTX, view);
 
     // Configuration items
     VariableItem* item;
@@ -247,25 +248,25 @@ LoRaRX* lora_relay_alloc() {
     instance->submenu = submenu_alloc();
     view = submenu_get_view(instance->submenu);
     view_set_previous_callback(view, lora_relay_exit_callback);
-    view_dispatcher_add_view(instance->view_dispatcher, LoRaRXViewSubmenu, view);
+    view_dispatcher_add_view(instance->view_dispatcher, LoRaRelayViewSubmenu, view);
     submenu_add_item(
         instance->submenu,
         "LoRa settings",
-        LoRaRXViewConfigure,
+        LoRaRelayViewConfigure,
         lora_relay_submenu_callback,
         instance);
     submenu_add_item(
         instance->submenu,
         "LoRa sniffer",
-        LoRaRXViewLoRaRX,
+        LoRaRelayViewLoRaRX,
         lora_relay_submenu_callback,
         instance);
-    // submenu_add_item(
-    //     instance->submenu,
-    //     "Transmit Signals",
-    //     LoRaRXViewLoRaTX,
-    //     lora_relay_submenu_callback,
-    //     instance);
+    submenu_add_item(
+        instance->submenu,
+        "LoRa sender",
+        LoRaRelayViewLoRaTX,
+        lora_relay_submenu_callback,
+        instance);
     // submenu_add_item(
     //     instance->submenu,
     //     "About",
@@ -275,22 +276,20 @@ LoRaRX* lora_relay_alloc() {
     return instance;
 }
 
-void lora_relay_free(LoRaRX* instance) {
-    view_dispatcher_remove_view(instance->view_dispatcher, LoRaRXViewSubmenu);
+void lora_relay_free(LoRaRelay* instance) {
+    view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewSubmenu);
     submenu_free(instance->submenu);
 
-    view_dispatcher_remove_view(instance->view_dispatcher, LoRaRXViewConfigure);
+    view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewConfigure);
 
-    storage_file_free(instance->capture_file);
+    // storage_file_free(instance->capture_file);
     variable_item_list_free(instance->variable_item_list);
 
-    view_dispatcher_remove_view(instance->view_dispatcher, LoRaRXViewLoRaRX);
+    view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewLoRaRX);
+    view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewLoRaTX);
     view_lora_rx_free(instance->view_lora_rx);
 
-    // view_dispatcher_remove_view(instance->view_dispatcher, LoRaRXViewLoRaTX);
-    // variable_item_list_free(instance->variable_item_list);
-
-    // view_dispatcher_remove_view(instance->view_dispatcher, LoRaRXViewLoRaAbout);
+    // view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewLoRaAbout);
     // view_lora_tx_free(instance->view_lora_tx);
 
     view_dispatcher_free(instance->view_dispatcher);
@@ -299,9 +298,9 @@ void lora_relay_free(LoRaRX* instance) {
     free(instance);
 }
 
-int32_t lora_relay_run(LoRaRX* instance) {
+int32_t lora_relay_run(LoRaRelay* instance) {
     UNUSED(instance);
-    view_dispatcher_switch_to_view(instance->view_dispatcher, LoRaRXViewSubmenu);
+    view_dispatcher_switch_to_view(instance->view_dispatcher, LoRaRelayViewSubmenu);
     view_dispatcher_run(instance->view_dispatcher);
 
     return 0;
@@ -318,7 +317,7 @@ int32_t lora_relay_app(void* p) {
 
     begin();
 
-    LoRaRX* instance = lora_relay_alloc();
+    LoRaRelay* instance = lora_relay_alloc();
 
     int32_t ret = lora_relay_run(instance);
 
