@@ -17,14 +17,13 @@ int lora_receive_async(u_int8_t* buff, int buffMaxLen);
 uint8_t receiveBuff[255];
 char asciiBuff[255];
 
-Storage* storage;
-File* file;
-
 typedef struct {
     uint32_t test;
     uint32_t size;
     uint32_t counter;
     bool flag_file;
+    Storage* storage;
+    File* file;
 } ViewLoRaRXModel;
 
 struct ViewLoRaRX {
@@ -36,7 +35,7 @@ static void view_lora_rx_draw_callback_intro(Canvas* canvas, void* _model) {
     UNUSED(_model);
     canvas_draw_str(canvas, 12, 24, "Use > to start sniffing");
     canvas_draw_str(canvas, 12, 36, "Use ^ and v to nothing");
-    canvas_draw_str(canvas, 32, 48, "Use (o) to start recording");
+    canvas_draw_str(canvas, 12, 48, "Use (o) to start recording");
 }
 
 void bytesToAscii(uint8_t* buffer, uint8_t length) {
@@ -80,8 +79,8 @@ static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
         receiveBuff[bytesRead] = '\0';
         
         if(flag_file) {
-            storage_file_write(file, receiveBuff, bytesRead);
-            storage_file_write(file, "\n", 1);
+            storage_file_write(model->file, receiveBuff, bytesRead);
+            storage_file_write(model->file, "\n", 1);
         }
 
         FURI_LOG_E(TAG,"%s",receiveBuff);  
@@ -143,11 +142,11 @@ static bool view_lora_rx_input_callback(InputEvent* event, void* context) {
                     model->flag_file = !model->flag_file;
 
                     if(model->flag_file) {
-                        storage_file_open(file, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
+                        storage_file_open(model->file, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
                         FURI_LOG_E(TAG,"OPEN FILE ");
                     }
                     else {
-                        storage_file_close(file);
+                        storage_file_close(model->file);
                         FURI_LOG_E(TAG,"CLOSE FILE ");
                     }
                     consumed = true;
@@ -185,14 +184,18 @@ ViewLoRaRX* view_lora_rx_alloc() {
 
     instance->view = view_alloc();
     view_set_context(instance->view, instance);
+    
     view_allocate_model(instance->view, ViewModelTypeLockFree, sizeof(ViewLoRaRXModel));
+
+    ViewLoRaRXModel* model = view_get_model(instance->view);
+
+    model->storage = furi_record_open(RECORD_STORAGE);
+    model->file = storage_file_alloc(model->storage);
+
     view_set_draw_callback(instance->view, view_lora_rx_draw_callback);
     view_set_input_callback(instance->view, view_lora_rx_input_callback);
     view_set_enter_callback(instance->view, view_lora_rx_enter);
     view_set_exit_callback(instance->view, view_lora_rx_exit);
-
-    storage = furi_record_open(RECORD_STORAGE);
-    file = storage_file_alloc(storage);
 
     instance->timer =
         furi_timer_alloc(view_lora_rx_timer_callback, FuriTimerTypePeriodic, instance);
@@ -203,7 +206,9 @@ ViewLoRaRX* view_lora_rx_alloc() {
 void view_lora_rx_free(ViewLoRaRX* instance) {
     furi_assert(instance);
 
-    storage_file_free(file);
+    ViewLoRaRXModel* model = view_get_model(instance->view);
+
+    storage_file_free(model->file);
 
     furi_timer_free(instance->timer);
     view_free(instance->view);
