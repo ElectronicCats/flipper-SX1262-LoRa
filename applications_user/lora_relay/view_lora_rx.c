@@ -1,12 +1,14 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <storage/storage.h>
+#include <dialogs/dialogs.h>
 
 #include "view_lora_rx.h"
 
 #define PATHAPP "apps_data/lora"
 #define PATHAPPEXT EXT_PATH(PATHAPP)
-#define PATHLORA PATHAPPEXT "/data.txt"
+#define PATHLORA PATHAPPEXT "/data.log"
+#define LORA_LOG_FILE_EXTENSION ".log"
 
 #define TAG "RX "
 
@@ -22,6 +24,7 @@ typedef struct {
     uint32_t size;
     uint32_t counter;
     bool flag_file;
+    DialogsApp* dialogs;
     Storage* storage;
     File* file;
 } ViewLoRaRXModel;
@@ -136,6 +139,14 @@ static bool view_lora_rx_input_callback(InputEvent* event, void* context) {
                     model->size--;
                     consumed = true;
                 } else if(event->key == InputKeyUp && model->size < 24) {
+
+                    FuriString* predefined_filepath = furi_string_alloc_set_str(PATHAPP);
+                    FuriString* selected_filepath = furi_string_alloc();
+                    DialogsFileBrowserOptions browser_options;
+                    dialog_file_browser_set_basic_options(&browser_options, LORA_LOG_FILE_EXTENSION, NULL);
+                    browser_options.base_path = PATHAPP;
+                    dialog_file_browser_show(model->dialogs, selected_filepath, predefined_filepath, &browser_options);
+
                     model->size++;
                     consumed = true;
                 } else if(event->key == InputKeyOk) {
@@ -189,6 +200,7 @@ ViewLoRaRX* view_lora_rx_alloc() {
 
     ViewLoRaRXModel* model = view_get_model(instance->view);
 
+    model->dialogs = furi_record_open(RECORD_DIALOGS);
     model->storage = furi_record_open(RECORD_STORAGE);
     model->file = storage_file_alloc(model->storage);
 
@@ -209,6 +221,8 @@ void view_lora_rx_free(ViewLoRaRX* instance) {
     ViewLoRaRXModel* model = view_get_model(instance->view);
 
     storage_file_free(model->file);
+    furi_record_close(RECORD_STORAGE);
+    furi_record_close(RECORD_DIALOGS);
 
     furi_timer_free(instance->timer);
     view_free(instance->view);

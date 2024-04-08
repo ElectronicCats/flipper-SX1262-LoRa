@@ -14,14 +14,15 @@ const GpioPin* const tx_led = &gpio_swclk;
 
 void transmit(uint8_t *data, int dataLen);
 
-// Storage* storage;
-// File* file;
+uint8_t transmitBuff[255];
 
 typedef struct {
     uint32_t test;
     uint32_t size;
     uint32_t counter;
-    bool flip_flop;
+    bool flag_file;
+    Storage* storage;
+    File* file;
 } ViewLoRaTXModel;
 
 struct ViewLoRaTX {
@@ -39,7 +40,7 @@ static void view_lora_tx_draw_callback_intro(Canvas* canvas, void* _model) {
 static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
     ViewLoRaTXModel* model = _model;
 
-    bool flip_flop = model->flip_flop;
+    bool flag_file = model->flag_file;
 
     uint8_t block = 5 + model->size;
     uint8_t width = canvas_width(canvas) - block;
@@ -55,7 +56,7 @@ static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
         y = height - y;
     }
 
-    if(flip_flop) {
+    if(flag_file) {
         furi_hal_gpio_write(tx_led, true);
         furi_delay_ms(50);
         furi_hal_gpio_write(tx_led, false);
@@ -65,7 +66,11 @@ static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
 
     canvas_draw_str(canvas, 12, 12, "HELL TX...");
 
-    // 
+    int bytesRead = 8;
+    if(flag_file) {
+        storage_file_write(model->file, transmitBuff, bytesRead);
+        storage_file_write(model->file, "\n", 1);
+    }
 
 
     canvas_draw_str(canvas, 12, 36, "ASCII:");
@@ -109,7 +114,17 @@ static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
                     model->size++;
                     consumed = true;
                 } else if(event->key == InputKeyOk) {
-                    model->flip_flop = !model->flip_flop;
+                    model->flag_file = !model->flag_file;
+
+                    if(model->flag_file) {
+                        storage_file_open(model->file, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
+                        FURI_LOG_E(TAG,"OPEN FILE ");
+                    }
+                    else {
+                        storage_file_close(model->file);
+                        FURI_LOG_E(TAG,"CLOSE FILE ");
+                    }
+
                     consumed = true;
                 }
             },
@@ -146,6 +161,12 @@ ViewLoRaTX* view_lora_tx_alloc() {
     instance->view = view_alloc();
     view_set_context(instance->view, instance);
     view_allocate_model(instance->view, ViewModelTypeLockFree, sizeof(ViewLoRaTXModel));
+
+    ViewLoRaTXModel* model = view_get_model(instance->view);
+
+    model->storage = furi_record_open(RECORD_STORAGE);
+    model->file = storage_file_alloc(model->storage);
+
     view_set_draw_callback(instance->view, view_lora_tx_draw_callback);
     view_set_input_callback(instance->view, view_lora_tx_input_callback);
     view_set_enter_callback(instance->view, view_lora_tx_enter);
@@ -159,6 +180,10 @@ ViewLoRaTX* view_lora_tx_alloc() {
 
 void view_lora_tx_free(ViewLoRaTX* instance) {
     furi_assert(instance);
+
+    ViewLoRaTXModel* model = view_get_model(instance->view);
+
+    storage_file_free(model->file);
 
     furi_timer_free(instance->timer);
     view_free(instance->view);
