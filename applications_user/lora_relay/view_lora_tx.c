@@ -160,6 +160,8 @@ static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
                                 if(buf[i] == '\n') {
                                     transmitBuff[j] = '\0';
                                     FURI_LOG_E(TAG,"SEND PACKET... %s", (char *)transmitBuff);
+                                    transmit(transmitBuff, j);
+                                    furi_delay_ms(50);
                                     j = 0;
                                     i++;
                                 }

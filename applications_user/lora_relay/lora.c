@@ -732,14 +732,18 @@ void transmit(uint8_t *data, int dataLen) {
   uint8_t size = sizeof(spiBuff);
   for (uint16_t i = 0; i < dataLen; i += size) {
     if (i + size > dataLen) { size = dataLen - i; }
+    memcpy(spiBuff,&(data[i]),size);
     furi_hal_spi_bus_tx(spi, data + i, size, timeout); // Write the payload itself
   }
+
+  FURI_LOG_E(TAG," data: %s", (char *)data);
 
   furi_hal_spi_release(spi);
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
   waitForRadioCommandCompletion(1000);   // Give time for radio to process the command
 
   // Transmit
+  FURI_LOG_E(TAG," Ready to TRANSMIT, send command");
   furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
 
   spiBuff[0] = 0x83;          // Opcode for SetTx command
@@ -752,7 +756,12 @@ void transmit(uint8_t *data, int dataLen) {
   furi_hal_spi_release(spi);
 
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
+
+  FURI_LOG_E(TAG," Wait for radio command completion starting");
+
   waitForRadioCommandCompletion(transmitTimeout); // Wait for tx to complete, with a timeout so we don't wait forever
+
+  FURI_LOG_E(TAG," Wait for radio command completion finished");
 
   // Remember that we are in Tx mode.  If we want to receive a packet, we need to switch into receiving mode
   inReceiveMode = false;
