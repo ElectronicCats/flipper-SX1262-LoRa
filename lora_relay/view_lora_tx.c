@@ -1,12 +1,14 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <storage/storage.h>
+#include <dialogs/dialogs.h>
 
 #include "view_lora_tx.h"
 
 #define PATHAPP "apps_data/lora"
 #define PATHAPPEXT EXT_PATH(PATHAPP)
 #define PATHLORA PATHAPPEXT "/data.txt"
+#define LORA_LOG_FILE_EXTENSION ".log"
 
 #define TAG "TX "
 
@@ -21,6 +23,8 @@ typedef struct {
     uint32_t size;
     uint32_t counter;
     bool flag_file;
+    FuriString* text;
+    DialogsApp* dialogs;
     Storage* storage;
     File* file;
 } ViewLoRaTXModel;
@@ -114,16 +118,65 @@ static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
                     model->size++;
                     consumed = true;
                 } else if(event->key == InputKeyOk) {
-                    model->flag_file = !model->flag_file;
+                    //model->flag_file = !model->flag_file;
 
-                    if(model->flag_file) {
-                        storage_file_open(model->file, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
-                        FURI_LOG_E(TAG,"OPEN FILE ");
-                    }
-                    else {
+                    // if(model->flag_file) {
+                    //     storage_file_open(model->file, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
+                    //     FURI_LOG_E(TAG,"OPEN FILE ");
+                    // }
+                    // else {
+                    //     storage_file_close(model->file);
+                    //     FURI_LOG_E(TAG,"CLOSE FILE ");
+                    // }
+
+                    FuriString* predefined_filepath = furi_string_alloc_set_str(PATHAPP);
+                    FuriString* selected_filepath = furi_string_alloc();
+                    DialogsFileBrowserOptions browser_options;
+                    dialog_file_browser_set_basic_options(&browser_options, LORA_LOG_FILE_EXTENSION, NULL);
+                    browser_options.base_path = PATHAPP;
+                    dialog_file_browser_show(model->dialogs, selected_filepath, predefined_filepath, &browser_options);
+
+                    if(storage_file_open(
+                            model->file, furi_string_get_cstr(selected_filepath), FSAM_READ, FSOM_OPEN_EXISTING)) {
+
+                            FURI_LOG_E(TAG,"OPEN FILE");
+
+                            furi_string_reset(model->text);
+                            char buf[storage_file_size(model->file)];
+
+                            FURI_LOG_E(TAG,"SIZE FILE %d", sizeof(buf));
+
+                            storage_file_read(model->file, buf, sizeof(buf));
+                            buf[sizeof(buf)] = '\0';
+
+                            furi_string_cat_str(model->text, buf);
+
+                            FURI_LOG_E(TAG,"SEND FILE...");
+
+                            for(uint8_t i = 0,j = 0; i < sizeof(buf); i++, j++) {
+                                
+                                //uint8_t packet[]
+                                transmitBuff[j] = buf[i];
+                                if(buf[i] == '\n') {
+                                    transmitBuff[j] = '\0';
+                                    FURI_LOG_E(TAG,"SEND PACKET... %s", (char *)transmitBuff);
+                                    j = 0;
+                                    i++;
+                                }
+
+                            }
+
+                            
+
+                        } else {
+                            dialog_message_show_storage_error(model->dialogs, "Cannot open File");
+                            return false;
+                        }
                         storage_file_close(model->file);
-                        FURI_LOG_E(TAG,"CLOSE FILE ");
-                    }
+                        FURI_LOG_E(TAG,"CLOSE FILE...");
+                        furi_string_free(selected_filepath);
+                        furi_string_free(predefined_filepath);
+
 
                     consumed = true;
                 }
@@ -164,8 +217,10 @@ ViewLoRaTX* view_lora_tx_alloc() {
 
     ViewLoRaTXModel* model = view_get_model(instance->view);
 
+    model->dialogs = furi_record_open(RECORD_DIALOGS);
     model->storage = furi_record_open(RECORD_STORAGE);
     model->file = storage_file_alloc(model->storage);
+    model->text = furi_string_alloc();
 
     view_set_draw_callback(instance->view, view_lora_tx_draw_callback);
     view_set_input_callback(instance->view, view_lora_tx_input_callback);
@@ -184,6 +239,9 @@ void view_lora_tx_free(ViewLoRaTX* instance) {
     ViewLoRaTXModel* model = view_get_model(instance->view);
 
     storage_file_free(model->file);
+    furi_record_close(RECORD_STORAGE);
+    furi_record_close(RECORD_DIALOGS);
+    furi_string_free(model->text);
 
     furi_timer_free(instance->timer);
     view_free(instance->view);

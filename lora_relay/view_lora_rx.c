@@ -140,12 +140,12 @@ static bool view_lora_rx_input_callback(InputEvent* event, void* context) {
                     consumed = true;
                 } else if(event->key == InputKeyUp && model->size < 24) {
 
-                    FuriString* predefined_filepath = furi_string_alloc_set_str(PATHAPP);
-                    FuriString* selected_filepath = furi_string_alloc();
-                    DialogsFileBrowserOptions browser_options;
-                    dialog_file_browser_set_basic_options(&browser_options, LORA_LOG_FILE_EXTENSION, NULL);
-                    browser_options.base_path = PATHAPP;
-                    dialog_file_browser_show(model->dialogs, selected_filepath, predefined_filepath, &browser_options);
+                    // FuriString* predefined_filepath = furi_string_alloc_set_str(PATHAPP);
+                    // FuriString* selected_filepath = furi_string_alloc();
+                    // DialogsFileBrowserOptions browser_options;
+                    // dialog_file_browser_set_basic_options(&browser_options, LORA_LOG_FILE_EXTENSION, NULL);
+                    // browser_options.base_path = PATHAPP;
+                    // dialog_file_browser_show(model->dialogs, selected_filepath, predefined_filepath, &browser_options);
 
                     model->size++;
                     consumed = true;
