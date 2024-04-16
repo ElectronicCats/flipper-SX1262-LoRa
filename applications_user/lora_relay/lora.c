@@ -532,7 +532,6 @@ bool waitForRadioCommandCompletion(uint32_t timeout) {
     furi_hal_gpio_write(pin_nss1, false); // Enable the radio chip-select
     furi_hal_spi_acquire(spi);
 
-
     spiBuff[0] = 0xC0; // Opcode for the "getStatus" command
     spiBuff[1] = 0x00 ; // Dummy byte, status will overwrite this byte
     
@@ -550,11 +549,13 @@ bool waitForRadioCommandCompletion(uint32_t timeout) {
     //Commands 3-6 = command timeout, command processing error, failure to execute command, and Tx Done (respoectively)
     if (commandStatus != 0 && commandStatus != 1 && commandStatus != 2) {
       dataTransmitted = true;
+      FURI_LOG_E(TAG,"DATA TRANSMITTED");
     }
 
     // If we are in standby mode, there's no need to wait anymore
     if (chipMode == 0x03 || chipMode == 0x02) {
       dataTransmitted = true;
+      FURI_LOG_E(TAG,"DATA TRANSMITTED STANBY MODE");
     }
 
     // Prevent infinite loop by implementing a timeout
@@ -736,7 +737,7 @@ void transmit(uint8_t *data, int dataLen) {
     furi_hal_spi_bus_tx(spi, data + i, size, timeout); // Write the payload itself
   }
 
-  FURI_LOG_E(TAG," data: %s", (char *)data);
+  //FURI_LOG_E(TAG," data: %s", (char *)data);
 
   furi_hal_spi_release(spi);
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select

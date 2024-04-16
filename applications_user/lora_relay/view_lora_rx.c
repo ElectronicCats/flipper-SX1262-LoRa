@@ -4,6 +4,7 @@
 #include <dialogs/dialogs.h>
 
 #include "view_lora_rx.h"
+#include "lora_relay_icons.h"
 
 #define PATHAPP "apps_data/lora"
 #define PATHAPPEXT EXT_PATH(PATHAPP)
@@ -36,9 +37,9 @@ struct ViewLoRaRX {
 
 static void view_lora_rx_draw_callback_intro(Canvas* canvas, void* _model) {
     UNUSED(_model);
-    canvas_draw_str(canvas, 12, 24, "Use > to start sniffing");
-    canvas_draw_str(canvas, 12, 36, "Use ^ and v to nothing");
-    canvas_draw_str(canvas, 12, 48, "Use (o) to start recording");
+    
+    canvas_draw_icon(canvas, 0, 0, &I_sam_flipper);
+    canvas_draw_str(canvas, 12, 6, "Use > to start sniffing");
 }
 
 void bytesToAscii(uint8_t* buffer, uint8_t length) {
@@ -94,7 +95,7 @@ static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
         asciiBuff[20] = '\0';    
     }
 
-
+    canvas_draw_str(canvas, 12, 60, "Use (o) to start/stop recording");
     canvas_draw_str(canvas, 12, 24, asciiBuff);
     canvas_draw_str(canvas, 12, 36, "ASCII:");
     canvas_draw_str(canvas, 12, 48, (const char*)receiveBuff);//(char*)receiveBuff);

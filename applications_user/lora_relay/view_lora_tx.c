@@ -4,6 +4,7 @@
 #include <dialogs/dialogs.h>
 
 #include "view_lora_tx.h"
+#include "lora_relay_icons.h"
 
 #define PATHAPP "apps_data/lora"
 #define PATHAPPEXT EXT_PATH(PATHAPP)
@@ -16,13 +17,12 @@ const GpioPin* const tx_led = &gpio_swclk;
 
 void transmit(uint8_t *data, int dataLen);
 
-uint8_t transmitBuff[255];
-
 typedef struct {
     uint32_t test;
     uint32_t size;
     uint32_t counter;
-    bool flag_file;
+    bool flag_tx_file;
+    bool flag_signal;
     FuriString* text;
     DialogsApp* dialogs;
     Storage* storage;
@@ -36,21 +36,29 @@ struct ViewLoRaTX {
 
 static void view_lora_tx_draw_callback_intro(Canvas* canvas, void* _model) {
     UNUSED(_model);
-    canvas_draw_str(canvas, 12, 24, "Use < and > to switch tests");
-    canvas_draw_str(canvas, 12, 36, "Use ^ and v to select LoRa packet");
-    canvas_draw_str(canvas, 32, 48, "Use (o) to send LoRa packet");
+    
+    canvas_draw_str(canvas, 12, 6, "Use (o) to select file and send content");
 }
 
 static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
     ViewLoRaTXModel* model = _model;
 
-    bool flag_file = model->flag_file;
+    bool flag_tx = model->flag_tx_file;
+
+    //FURI_LOG_E(TAG,"flag_tx = %d", (int)flag_tx);
 
     uint8_t block = 5 + model->size;
     uint8_t width = canvas_width(canvas) - block;
     uint8_t height = canvas_height(canvas) - block;
 
+    canvas_draw_icon(canvas, 0, 0, &I_kitty_tx);
+
     uint8_t x = model->counter % width;
+
+    if(x%40) {
+        model->flag_signal = !model->flag_signal;
+    }
+
     if((model->counter / width) % 2) {
         x = width - x;
     }
@@ -60,24 +68,29 @@ static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
         y = height - y;
     }
 
-    if(flag_file) {
-        furi_hal_gpio_write(tx_led, true);
-        furi_delay_ms(50);
-        furi_hal_gpio_write(tx_led, false);
+    if(flag_tx) {
+        
+    }
+
+    if(model->flag_signal) {
+        canvas_draw_icon(canvas, 44, 15, &I_signal);
+    }
+    else {
+        canvas_draw_icon(canvas, 44, 15, &I_no_signal);
     }
 
     canvas_draw_box(canvas, x, y, block, block);
 
-    canvas_draw_str(canvas, 12, 12, "HELL TX...");
+    canvas_draw_str(canvas, 6, 12, "LoRa TX...");
 
-    int bytesRead = 8;
-    if(flag_file) {
-        storage_file_write(model->file, transmitBuff, bytesRead);
-        storage_file_write(model->file, "\n", 1);
-    }
+    // int bytesRead = 8;
+    // if(flag_tx_file) {
+    //     storage_file_write(model->file, transmitBuff, bytesRead);
+    //     storage_file_write(model->file, "\n", 1);
+    // }
 
 
-    canvas_draw_str(canvas, 12, 36, "ASCII:");
+    //canvas_draw_str(canvas, 12, 36, "ASCII:");
 }
 
 const ViewDrawCallback view_lora_tx_tests[] = {
@@ -97,6 +110,8 @@ static void view_lora_tx_draw_callback(Canvas* canvas, void* _model) {
 static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
     ViewLoRaTX* instance = context;
 
+    uint8_t transmitBuff[64];
+
     bool consumed = false;
     if(event->type == InputTypeShort || event->type == InputTypeRepeat) {
         with_view_model(
@@ -104,30 +119,24 @@ static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
             ViewLoRaTXModel * model,
             {
                 if(event->key == InputKeyLeft && model->test > 0) {
-                    model->test--;
+                    //model->test--;
                     consumed = true;
                 } else if(
-                    event->key == InputKeyRight &&
-                    model->test < (COUNT_OF(view_lora_tx_tests) - 1)) {
-                    model->test++;
+                    event->key == InputKeyRight) { //&&
+                    //model->test < (COUNT_OF(view_lora_tx_tests) - 1)) {
+                    //model->test++;
                     consumed = true;
-                } else if(event->key == InputKeyDown && model->size > 0) {
-                    model->size--;
+                } else if(event->key == InputKeyDown) { //&& model->size > 0) {
+                    //model->size--;
                     consumed = true;
-                } else if(event->key == InputKeyUp && model->size < 24) {
-                    model->size++;
+                } else if(event->key == InputKeyUp) { //&& model->size < 24) {
+                    //model->size++;
                     consumed = true;
                 } else if(event->key == InputKeyOk) {
-                    //model->flag_file = !model->flag_file;
 
-                    // if(model->flag_file) {
-                    //     storage_file_open(model->file, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
-                    //     FURI_LOG_E(TAG,"OPEN FILE ");
-                    // }
-                    // else {
-                    //     storage_file_close(model->file);
-                    //     FURI_LOG_E(TAG,"CLOSE FILE ");
-                    // }
+                    model->flag_tx_file = true;
+                    FURI_LOG_E(TAG,"INPUT KEY OK flag_tx = %d", (int)model->flag_tx_file);
+                    model->test = 1;
 
                     FuriString* predefined_filepath = furi_string_alloc_set_str(PATHAPP);
                     FuriString* selected_filepath = furi_string_alloc();
@@ -141,45 +150,49 @@ static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
 
                             FURI_LOG_E(TAG,"OPEN FILE");
 
-                            furi_string_reset(model->text);
+                            //furi_string_reset(model->text);
                             char buf[storage_file_size(model->file)];
-
-                            FURI_LOG_E(TAG,"SIZE FILE %d", sizeof(buf));
-
+                            
                             storage_file_read(model->file, buf, sizeof(buf));
                             buf[sizeof(buf)] = '\0';
 
-                            furi_string_cat_str(model->text, buf);
+                            uint16_t maxlen = sizeof(buf);
+
+                            FURI_LOG_E(TAG,"SIZE FILE %d", maxlen);
+
+                            //furi_string_cat_str(model->text, buf);
 
                             FURI_LOG_E(TAG,"SEND FILE...");
-
-                            for(uint8_t i = 0,j = 0; i < sizeof(buf); i++, j++) {
+                            
+                            for(uint16_t i = 0,j = 0; i < maxlen; i++,j++) {
                                 
-                                //uint8_t packet[]
                                 transmitBuff[j] = buf[i];
                                 if(buf[i] == '\n') {
+                                    FURI_LOG_E(TAG,"slash n found...");
+
                                     transmitBuff[j] = '\0';
+                                    FURI_LOG_E(TAG,"ANTES DE TX j = %d", j);
                                     FURI_LOG_E(TAG,"SEND PACKET... %s", (char *)transmitBuff);
                                     transmit(transmitBuff, j);
-                                    furi_delay_ms(50);
+                                    furi_delay_ms(10);
                                     j = 0;
+                                    FURI_LOG_E(TAG,"DESPUES DE TX j = %d", j);
                                     i++;
                                 }
-
                             }
+                    } else {
+                        dialog_message_show_storage_error(model->dialogs, "Cannot open File");
+                    }
+                    storage_file_close(model->file);
+                    FURI_LOG_E(TAG,"CLOSE FILE...");
+                    furi_string_free(selected_filepath);
+                    furi_string_free(predefined_filepath);
 
-                            
+                    furi_hal_gpio_write(tx_led, true);
+                    furi_delay_ms(50);
+                    furi_hal_gpio_write(tx_led, false);
 
-                        } else {
-                            dialog_message_show_storage_error(model->dialogs, "Cannot open File");
-                            return false;
-                        }
-                        storage_file_close(model->file);
-                        FURI_LOG_E(TAG,"CLOSE FILE...");
-                        furi_string_free(selected_filepath);
-                        furi_string_free(predefined_filepath);
-
-
+                    model->flag_tx_file = false;
                     consumed = true;
                 }
             },
