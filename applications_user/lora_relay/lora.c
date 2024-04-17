@@ -271,30 +271,31 @@ void updateModulationParameters() {
   furi_delay_ms(100); // Give time for the radio to process command
 
   // Determine transmit timeout based on spreading factor
+  //TIMEOUT SET TO 1000, STILL CHECKING HOW TO FIX
   switch (spreadingFactor) {
     case 12:
-      transmitTimeout = 252000; // Actual tx time 126 seconds
+      transmitTimeout = 1000; // 252000; // Actual tx time 126 seconds
       break;
     case 11:
-      transmitTimeout = 160000; // Actual tx time 81 seconds
+      transmitTimeout = 1000; // 160000; // Actual tx time 81 seconds
       break;
     case 10:
-      transmitTimeout = 60000; // Actual tx time 36 seconds
+      transmitTimeout = 1000; // 60000; // Actual tx time 36 seconds
       break;
     case 9:
-      transmitTimeout = 40000; // Actual tx time 20 seconds
+      transmitTimeout = 1000; // 40000; // Actual tx time 20 seconds
       break;
     case 8:
-      transmitTimeout = 20000; // Actual tx time 11 seconds
+      transmitTimeout = 1000; // 20000; // Actual tx time 11 seconds
       break;
     case 7:
-      transmitTimeout = 12000; // Actual tx time 6.3 seconds
+      transmitTimeout = 1000; // 12000; // Actual tx time 6.3 seconds
       break;
     case 6:
-      transmitTimeout = 7000; // Actual tx time 3.7s seconds
+      transmitTimeout = 1000; // 7000; // Actual tx time 3.7s seconds
       break;
     default:  // SF5
-      transmitTimeout = 5000; // Actual tx time 2.2 seconds
+      transmitTimeout = 1000; //5000; // Actual tx time 2.2 seconds
       break;
   }
 }

@@ -73,8 +73,6 @@ static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
 
     canvas_draw_box(canvas, x, y, block, block);
 
-    canvas_draw_str(canvas, 12, 12, "Packet received...");
-
     //Receive a packet over radio
     int bytesRead = lora_receive_async(receiveBuff, sizeof(receiveBuff));
 
@@ -85,7 +83,10 @@ static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
         if(flag_file) {
             storage_file_write(model->file, receiveBuff, bytesRead);
             storage_file_write(model->file, "\n", 1);
+            
         }
+
+        //FURI_LOG_E(TAG,"flag_file = %d",(int)flag_file);
 
         FURI_LOG_E(TAG,"%s",receiveBuff);  
         bytesToAscii(receiveBuff, 16);
@@ -95,10 +96,19 @@ static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
         asciiBuff[20] = '\0';    
     }
 
-    canvas_draw_str(canvas, 12, 60, "Use (o) to start/stop recording");
-    canvas_draw_str(canvas, 12, 24, asciiBuff);
-    canvas_draw_str(canvas, 12, 36, "ASCII:");
-    canvas_draw_str(canvas, 12, 48, (const char*)receiveBuff);//(char*)receiveBuff);
+    if(flag_file) {
+        canvas_draw_icon(canvas, 100, 6, &I_write);
+    }
+    else {
+        canvas_draw_icon(canvas, 100, 6, &I_no_write);
+    }
+
+    canvas_draw_str(canvas, 0, 8, "Use (o) to start/stop");
+    canvas_draw_str(canvas, 0, 16, "recording");
+    canvas_draw_str(canvas, 0, 30, "Packet received...");
+    canvas_draw_str(canvas, 0, 40, asciiBuff);
+    canvas_draw_str(canvas, 0, 52, "ASCII:");
+    canvas_draw_str(canvas, 0, 62, (const char*)receiveBuff);//(char*)receiveBuff);
     
 
     //receiveBuff[0] = '\0';

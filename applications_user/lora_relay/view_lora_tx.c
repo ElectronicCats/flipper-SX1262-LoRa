@@ -37,7 +37,7 @@ struct ViewLoRaTX {
 static void view_lora_tx_draw_callback_intro(Canvas* canvas, void* _model) {
     UNUSED(_model);
     
-    canvas_draw_str(canvas, 12, 6, "Use (o) to select file and send content");
+    canvas_draw_str(canvas, 6, 12, "Use (o) to select file and send content");
 }
 
 static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
@@ -55,7 +55,7 @@ static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
 
     uint8_t x = model->counter % width;
 
-    if(x%40) {
+    if(model->counter % 20) {
         model->flag_signal = !model->flag_signal;
     }
 
@@ -134,19 +134,24 @@ static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
                     consumed = true;
                 } else if(event->key == InputKeyOk) {
 
-                    model->flag_tx_file = true;
-                    FURI_LOG_E(TAG,"INPUT KEY OK flag_tx = %d", (int)model->flag_tx_file);
-                    model->test = 1;
-
                     FuriString* predefined_filepath = furi_string_alloc_set_str(PATHAPP);
                     FuriString* selected_filepath = furi_string_alloc();
                     DialogsFileBrowserOptions browser_options;
                     dialog_file_browser_set_basic_options(&browser_options, LORA_LOG_FILE_EXTENSION, NULL);
                     browser_options.base_path = PATHAPP;
+
+                    FURI_LOG_E(TAG,"DIALOG BROWSER...");
+
                     dialog_file_browser_show(model->dialogs, selected_filepath, predefined_filepath, &browser_options);
+
+                    FURI_LOG_E(TAG,"STORAGE FILE OPEN...");
 
                     if(storage_file_open(
                             model->file, furi_string_get_cstr(selected_filepath), FSAM_READ, FSOM_OPEN_EXISTING)) {
+
+                            model->flag_tx_file = true;
+                            FURI_LOG_E(TAG,"INPUT KEY OK flag_tx = %d", (int)model->flag_tx_file);
+                            model->test = 1;
 
                             FURI_LOG_E(TAG,"OPEN FILE");
 
@@ -185,6 +190,7 @@ static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
                     }
                     storage_file_close(model->file);
                     FURI_LOG_E(TAG,"CLOSE FILE...");
+                    model->test = 0;
                     furi_string_free(selected_filepath);
                     furi_string_free(predefined_filepath);
 
