@@ -38,8 +38,8 @@ struct ViewLoRaRX {
 static void view_lora_rx_draw_callback_intro(Canvas* canvas, void* _model) {
     UNUSED(_model);
     
-    canvas_draw_icon(canvas, 0, 0, &I_sam_flipper);
-    canvas_draw_str(canvas, 12, 6, "Use > to start sniffing");
+    canvas_draw_icon(canvas, 0, 0, &I_flippers_cat);
+    canvas_draw_str(canvas, 17, 6, "Use > to start sniffing");
 }
 
 void bytesToAscii(uint8_t* buffer, uint8_t length) {
@@ -97,10 +97,10 @@ static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
     }
 
     if(flag_file) {
-        canvas_draw_icon(canvas, 100, 6, &I_write);
+        canvas_draw_icon(canvas, 110, 4, &I_write);
     }
     else {
-        canvas_draw_icon(canvas, 100, 6, &I_no_write);
+        canvas_draw_icon(canvas, 110, 4, &I_no_write);
     }
 
     canvas_draw_str(canvas, 0, 8, "Use (o) to start/stop");
@@ -192,7 +192,11 @@ static void view_lora_rx_enter(void* context) {
 
 static void view_lora_rx_exit(void* context) {
     ViewLoRaRX* instance = context;
+
+    ViewLoRaRXModel* model = view_get_model(instance->view);
+
     furi_timer_stop(instance->timer);
+    model->test = 0;
 }
 
 static void view_lora_rx_timer_callback(void* context) {
