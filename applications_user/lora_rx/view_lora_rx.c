@@ -1,15 +1,7 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <storage/storage.h>
-#include <dialogs/dialogs.h>
-
 #include "view_lora_rx.h"
-#include "lora_relay_icons.h"
-
-#define PATHAPP "apps_data/lora"
-#define PATHAPPEXT EXT_PATH(PATHAPP)
-#define PATHLORA PATHAPPEXT "/data.log"
-#define LORA_LOG_FILE_EXTENSION ".log"
 
 #define TAG "RX "
 
@@ -24,10 +16,7 @@ typedef struct {
     uint32_t test;
     uint32_t size;
     uint32_t counter;
-    bool flag_file;
-    DialogsApp* dialogs;
-    Storage* storage;
-    File* file;
+    bool flip_flop;
 } ViewLoRaRXModel;
 
 struct ViewLoRaRX {
@@ -37,9 +26,9 @@ struct ViewLoRaRX {
 
 static void view_lora_rx_draw_callback_intro(Canvas* canvas, void* _model) {
     UNUSED(_model);
-    
-    canvas_draw_icon(canvas, 0, 0, &I_flippers_cat);
-    canvas_draw_str(canvas, 17, 6, "Use > to start sniffing");
+    canvas_draw_str(canvas, 12, 24, "Use < and > to switch tests");
+    canvas_draw_str(canvas, 12, 36, "Use ^ and v to switch size");
+    canvas_draw_str(canvas, 32, 48, "Use (o) to flip");
 }
 
 void bytesToAscii(uint8_t* buffer, uint8_t length) {
@@ -55,7 +44,7 @@ void bytesToAscii(uint8_t* buffer, uint8_t length) {
 static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
     ViewLoRaRXModel* model = _model;
 
-    bool flag_file = model->flag_file;
+    bool flip_flop = model->flip_flop;
 
     uint8_t block = 5 + model->size;
     uint8_t width = canvas_width(canvas) - block;
@@ -71,22 +60,22 @@ static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
         y = height - y;
     }
 
+    if(flip_flop) {
+        furi_hal_gpio_write(test_led, true);
+        furi_delay_ms(50);
+        furi_hal_gpio_write(test_led, false);
+    }
+
     canvas_draw_box(canvas, x, y, block, block);
+
+    canvas_draw_str(canvas, 12, 12, "Packet received...");
 
     //Receive a packet over radio
     int bytesRead = lora_receive_async(receiveBuff, sizeof(receiveBuff));
 
     if (bytesRead > -1) {
         FURI_LOG_E(TAG,"Packet received... ");
-        receiveBuff[bytesRead] = '\0';
-        
-        if(flag_file) {
-            storage_file_write(model->file, receiveBuff, bytesRead);
-            storage_file_write(model->file, "\n", 1);
-            
-        }
-
-        //FURI_LOG_E(TAG,"flag_file = %d",(int)flag_file);
+        receiveBuff[bytesRead] = '\0';        
 
         FURI_LOG_E(TAG,"%s",receiveBuff);  
         bytesToAscii(receiveBuff, 16);
@@ -96,19 +85,10 @@ static void view_lora_rx_draw_callback_move(Canvas* canvas, void* _model) {
         asciiBuff[20] = '\0';    
     }
 
-    if(flag_file) {
-        canvas_draw_icon(canvas, 110, 4, &I_write);
-    }
-    else {
-        canvas_draw_icon(canvas, 110, 4, &I_no_write);
-    }
 
-    canvas_draw_str(canvas, 0, 8, "Use (o) to start/stop");
-    canvas_draw_str(canvas, 0, 16, "recording");
-    canvas_draw_str(canvas, 0, 30, "Packet received...");
-    canvas_draw_str(canvas, 0, 40, asciiBuff);
-    canvas_draw_str(canvas, 0, 52, "ASCII:");
-    canvas_draw_str(canvas, 0, 62, (const char*)receiveBuff);//(char*)receiveBuff);
+    canvas_draw_str(canvas, 12, 24, asciiBuff);
+    canvas_draw_str(canvas, 12, 36, "ASCII:");
+    canvas_draw_str(canvas, 12, 48, (const char*)receiveBuff);//(char*)receiveBuff);
     
 
     //receiveBuff[0] = '\0';
@@ -150,27 +130,10 @@ static bool view_lora_rx_input_callback(InputEvent* event, void* context) {
                     model->size--;
                     consumed = true;
                 } else if(event->key == InputKeyUp && model->size < 24) {
-
-                    // FuriString* predefined_filepath = furi_string_alloc_set_str(PATHAPP);
-                    // FuriString* selected_filepath = furi_string_alloc();
-                    // DialogsFileBrowserOptions browser_options;
-                    // dialog_file_browser_set_basic_options(&browser_options, LORA_LOG_FILE_EXTENSION, NULL);
-                    // browser_options.base_path = PATHAPP;
-                    // dialog_file_browser_show(model->dialogs, selected_filepath, predefined_filepath, &browser_options);
-
                     model->size++;
                     consumed = true;
                 } else if(event->key == InputKeyOk) {
-                    model->flag_file = !model->flag_file;
-
-                    if(model->flag_file) {
-                        storage_file_open(model->file, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
-                        FURI_LOG_E(TAG,"OPEN FILE ");
-                    }
-                    else {
-                        storage_file_close(model->file);
-                        FURI_LOG_E(TAG,"CLOSE FILE ");
-                    }
+                    model->flip_flop = !model->flip_flop;
                     consumed = true;
                 }
             },
@@ -192,11 +155,7 @@ static void view_lora_rx_enter(void* context) {
 
 static void view_lora_rx_exit(void* context) {
     ViewLoRaRX* instance = context;
-
-    ViewLoRaRXModel* model = view_get_model(instance->view);
-
     furi_timer_stop(instance->timer);
-    model->test = 0;
 }
 
 static void view_lora_rx_timer_callback(void* context) {
@@ -210,15 +169,7 @@ ViewLoRaRX* view_lora_rx_alloc() {
 
     instance->view = view_alloc();
     view_set_context(instance->view, instance);
-    
     view_allocate_model(instance->view, ViewModelTypeLockFree, sizeof(ViewLoRaRXModel));
-
-    ViewLoRaRXModel* model = view_get_model(instance->view);
-
-    model->dialogs = furi_record_open(RECORD_DIALOGS);
-    model->storage = furi_record_open(RECORD_STORAGE);
-    model->file = storage_file_alloc(model->storage);
-
     view_set_draw_callback(instance->view, view_lora_rx_draw_callback);
     view_set_input_callback(instance->view, view_lora_rx_input_callback);
     view_set_enter_callback(instance->view, view_lora_rx_enter);
@@ -232,12 +183,6 @@ ViewLoRaRX* view_lora_rx_alloc() {
 
 void view_lora_rx_free(ViewLoRaRX* instance) {
     furi_assert(instance);
-
-    ViewLoRaRXModel* model = view_get_model(instance->view);
-
-    storage_file_free(model->file);
-    furi_record_close(RECORD_STORAGE);
-    furi_record_close(RECORD_DIALOGS);
 
     furi_timer_free(instance->timer);
     view_free(instance->view);

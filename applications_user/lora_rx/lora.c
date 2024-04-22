@@ -271,31 +271,30 @@ void updateModulationParameters() {
   furi_delay_ms(100); // Give time for the radio to process command
 
   // Determine transmit timeout based on spreading factor
-  //TIMEOUT SET TO 1000, STILL CHECKING HOW TO FIX
   switch (spreadingFactor) {
     case 12:
-      transmitTimeout = 1000; // 252000; // Actual tx time 126 seconds
+      transmitTimeout = 252000; // Actual tx time 126 seconds
       break;
     case 11:
-      transmitTimeout = 1000; // 160000; // Actual tx time 81 seconds
+      transmitTimeout = 160000; // Actual tx time 81 seconds
       break;
     case 10:
-      transmitTimeout = 1000; // 60000; // Actual tx time 36 seconds
+      transmitTimeout = 60000; // Actual tx time 36 seconds
       break;
     case 9:
-      transmitTimeout = 1000; // 40000; // Actual tx time 20 seconds
+      transmitTimeout = 40000; // Actual tx time 20 seconds
       break;
     case 8:
-      transmitTimeout = 1000; // 20000; // Actual tx time 11 seconds
+      transmitTimeout = 20000; // Actual tx time 11 seconds
       break;
     case 7:
-      transmitTimeout = 1000; // 12000; // Actual tx time 6.3 seconds
+      transmitTimeout = 12000; // Actual tx time 6.3 seconds
       break;
     case 6:
-      transmitTimeout = 1000; // 7000; // Actual tx time 3.7s seconds
+      transmitTimeout = 7000; // Actual tx time 3.7s seconds
       break;
     default:  // SF5
-      transmitTimeout = 1000; //5000; // Actual tx time 2.2 seconds
+      transmitTimeout = 5000; // Actual tx time 2.2 seconds
       break;
   }
 }
@@ -533,6 +532,7 @@ bool waitForRadioCommandCompletion(uint32_t timeout) {
     furi_hal_gpio_write(pin_nss1, false); // Enable the radio chip-select
     furi_hal_spi_acquire(spi);
 
+
     spiBuff[0] = 0xC0; // Opcode for the "getStatus" command
     spiBuff[1] = 0x00 ; // Dummy byte, status will overwrite this byte
     
@@ -550,13 +550,11 @@ bool waitForRadioCommandCompletion(uint32_t timeout) {
     //Commands 3-6 = command timeout, command processing error, failure to execute command, and Tx Done (respoectively)
     if (commandStatus != 0 && commandStatus != 1 && commandStatus != 2) {
       dataTransmitted = true;
-      FURI_LOG_E(TAG,"DATA TRANSMITTED");
     }
 
     // If we are in standby mode, there's no need to wait anymore
     if (chipMode == 0x03 || chipMode == 0x02) {
       dataTransmitted = true;
-      FURI_LOG_E(TAG,"DATA TRANSMITTED STANBY MODE");
     }
 
     // Prevent infinite loop by implementing a timeout
@@ -734,18 +732,14 @@ void transmit(uint8_t *data, int dataLen) {
   uint8_t size = sizeof(spiBuff);
   for (uint16_t i = 0; i < dataLen; i += size) {
     if (i + size > dataLen) { size = dataLen - i; }
-    memcpy(spiBuff,&(data[i]),size);
     furi_hal_spi_bus_tx(spi, data + i, size, timeout); // Write the payload itself
   }
-
-  //FURI_LOG_E(TAG," data: %s", (char *)data);
 
   furi_hal_spi_release(spi);
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
   waitForRadioCommandCompletion(1000);   // Give time for radio to process the command
 
   // Transmit
-  FURI_LOG_E(TAG," Ready to TRANSMIT, send command");
   furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
 
   spiBuff[0] = 0x83;          // Opcode for SetTx command
@@ -758,12 +752,7 @@ void transmit(uint8_t *data, int dataLen) {
   furi_hal_spi_release(spi);
 
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
-
-  FURI_LOG_E(TAG," Wait for radio command completion starting");
-
   waitForRadioCommandCompletion(transmitTimeout); // Wait for tx to complete, with a timeout so we don't wait forever
-
-  FURI_LOG_E(TAG," Wait for radio command completion finished");
 
   // Remember that we are in Tx mode.  If we want to receive a packet, we need to switch into receiving mode
   inReceiveMode = false;
