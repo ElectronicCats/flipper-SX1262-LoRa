@@ -2,6 +2,9 @@
 #include <furi_hal.h>
 #include <storage/storage.h>
 #include <dialogs/dialogs.h>
+#include <gui/view_dispatcher.h>
+//#include <gui/modules/byte_input.h>
+#include <gui/modules/text_input.h>
 
 #include "view_lora_tx.h"
 #include "lora_relay_icons.h"
@@ -27,12 +30,24 @@ typedef struct {
     DialogsApp* dialogs;
     Storage* storage;
     File* file;
+    FuriString* setting_2_name; // The name setting
 } ViewLoRaTXModel;
 
 struct ViewLoRaTX {
+    ViewDispatcher* view_dispatcher;
     View* view;
+    TextInput* text_input; // The text input screen
+    char* temp_buffer; // Temporary buffer for text input
+    uint32_t temp_buffer_size; // Size of temporary buffer
     FuriTimer* timer;
 };
+
+// Each view is a screen we show the user.
+typedef enum {
+    LoRaTXViewTextInput, // Input for configuring text settings
+    LoRaTXViewConfigure, // The configuration screen
+    LoRaTXViewAbout, // The about screen with directions, link to social channel, etc.
+} LoRaTXView;
 
 static void view_lora_tx_draw_callback_intro(Canvas* canvas, void* _model) {
     UNUSED(_model);
@@ -44,8 +59,6 @@ static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
     ViewLoRaTXModel* model = _model;
 
     bool flag_tx = model->flag_tx_file;
-
-    //FURI_LOG_E(TAG,"flag_tx = %d", (int)flag_tx);
 
     uint8_t block = 5 + model->size;
     uint8_t width = canvas_width(canvas) - block;
@@ -82,23 +95,10 @@ static void view_lora_tx_draw_callback_move(Canvas* canvas, void* _model) {
     canvas_draw_box(canvas, x, y, block, block);
 
     canvas_draw_str(canvas, 6, 12, "LoRa TX...");
-
-    // int bytesRead = 8;
-    // if(flag_tx_file) {
-    //     storage_file_write(model->file, transmitBuff, bytesRead);
-    //     storage_file_write(model->file, "\n", 1);
-    // }
-
-
-    //canvas_draw_str(canvas, 12, 36, "ASCII:");
 }
 
 const ViewDrawCallback view_lora_tx_tests[] = {
     view_lora_tx_draw_callback_intro,
-    // view_lora_tx_draw_callback_fill,
-    // view_lora_tx_draw_callback_hstripe,
-    // view_lora_tx_draw_callback_vstripe,
-    // view_lora_tx_draw_callback_check,
     view_lora_tx_draw_callback_move,
 };
 
@@ -140,20 +140,13 @@ static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
                     dialog_file_browser_set_basic_options(&browser_options, LORA_LOG_FILE_EXTENSION, NULL);
                     browser_options.base_path = PATHAPP;
 
-                    FURI_LOG_E(TAG,"DIALOG BROWSER...");
-
                     dialog_file_browser_show(model->dialogs, selected_filepath, predefined_filepath, &browser_options);
-
-                    FURI_LOG_E(TAG,"STORAGE FILE OPEN...");
 
                     if(storage_file_open(
                             model->file, furi_string_get_cstr(selected_filepath), FSAM_READ, FSOM_OPEN_EXISTING)) {
 
                             model->flag_tx_file = true;
-                            FURI_LOG_E(TAG,"INPUT KEY OK flag_tx = %d", (int)model->flag_tx_file);
                             model->test = 1;
-
-                            FURI_LOG_E(TAG,"OPEN FILE");
 
                             //furi_string_reset(model->text);
                             char buf[storage_file_size(model->file)];
@@ -162,26 +155,15 @@ static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
                             buf[sizeof(buf)] = '\0';
 
                             uint16_t maxlen = sizeof(buf);
-
-                            FURI_LOG_E(TAG,"SIZE FILE %d", maxlen);
-
-                            //furi_string_cat_str(model->text, buf);
-
-                            FURI_LOG_E(TAG,"SEND FILE...");
                             
                             for(uint16_t i = 0,j = 0; i < maxlen; i++,j++) {
                                 
                                 transmitBuff[j] = buf[i];
                                 if(buf[i] == '\n') {
-                                    FURI_LOG_E(TAG,"slash n found...");
-
                                     transmitBuff[j] = '\0';
-                                    FURI_LOG_E(TAG,"ANTES DE TX j = %d", j);
-                                    FURI_LOG_E(TAG,"SEND PACKET... %s", (char *)transmitBuff);
                                     transmit(transmitBuff, j);
                                     furi_delay_ms(10);
                                     j = 0;
-                                    FURI_LOG_E(TAG,"DESPUES DE TX j = %d", j);
                                     i++;
                                 }
                             }
@@ -189,7 +171,6 @@ static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
                         dialog_message_show_storage_error(model->dialogs, "Cannot open File");
                     }
                     storage_file_close(model->file);
-                    FURI_LOG_E(TAG,"CLOSE FILE...");
                     model->test = 0;
                     furi_string_free(selected_filepath);
                     furi_string_free(predefined_filepath);
@@ -207,6 +188,27 @@ static bool view_lora_tx_input_callback(InputEvent* event, void* context) {
 
     return consumed;
 }
+
+
+// static const char* setting_2_config_label = "Name";
+// static const char* setting_2_entry_text = "Enter name";
+// static const char* setting_2_default_value = "Bob";
+
+
+// static void view_lora_tx_setting_2_text_updated(void* context) {
+//     ViewLoRaTX* instance = (ViewLoRaTX*)context;
+//     bool redraw = true;
+//     with_view_model(
+//         instance->view,
+//         ViewLoRaTXModel * model,
+//         {
+//             furi_string_set(model->setting_2_name, instance->temp_buffer);
+//             //variable_item_set_current_value_text(
+//             //model->setting_2_name, furi_string_get_cstr(model->setting_2_name));
+//         },
+//         redraw);
+//     view_dispatcher_switch_to_view(instance->view_dispatcher, LoRaTXViewConfigure);
+// }
 
 static void view_lora_tx_enter(void* context) {
     ViewLoRaTX* instance = context;

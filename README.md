@@ -52,12 +52,14 @@ Select what you wanna do by clicking one of the options on the screen
 * A succesfull comunication between flipper and another LoRa device will depend on LoRa parameters configured, you must know how are they configured in the target LoRa network, wrong configurations will result in a data loss
 
 ## Sender Menu
+* Send data log file
+
 <img width="256" alt="Sender Menu" src="https://github.com/ElectronicCats/flipper-SX1262-LoRa/blob/main/assets/lora_sender.png">
 
 <!--- Manual Sender (Build a packet manually and send it) --->
 <!--- Buffer Sender (A list with the most recent master sniffed requests, open any of them, modify it and send it) --->
 
-* Send data log file
+* Use central key in D-pad to start Browser
 
 <img width="256" alt="Opening LOG file" src="https://github.com/ElectronicCats/flipper-SX1262-LoRa/blob/main/assets/select_file.png">
 

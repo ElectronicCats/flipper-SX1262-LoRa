@@ -1,11 +1,11 @@
 /*
-Test
+Code porting from LoRa library https://github.dev/thekakester/Arduino-LoRa-Sx1262
 */
 
 #include <furi.h>
 #include <furi_hal.h>
 
-#define TAG ""
+#define TAG "LORA"
 
 //Presets. These help make radio config easier
 #define PRESET_DEFAULT    0
@@ -48,6 +48,7 @@ int rssi = 0;
 int snr = 0;
 int signalRssi = 0;
 
+// test
 void abandone() {
     FURI_LOG_E(TAG, "abandon hope all ye who enter here");
 }
@@ -144,15 +145,13 @@ uint32_t getFreqInt()
 
 /*Convert a frequency in hz (such as 915000000) to the respective PLL setting.
 * The radio requires that we set the PLL, which controls the multipler on the internal clock to achieve the desired frequency.
-* Valid frequencies are 150mhz to 960mhz (150000000 to 960000000)
+* Valid frequencies are 150MHz to 960MHz (150000000 to 960000000)
 *
 * NOTE: This assumes the radio is using a 32mhz clock, which is standard.  This is independent of the microcontroller clock
 * See datasheet section 13.4.1 for this calculation.
 * Example: 915mhz (915000000) has a PLL of 959447040
 */
 uint32_t frequencyToPLL(long rfFreq) {
-
-  FURI_LOG_E(TAG, " ENTER - frequencyToPLL()");
 
   /* Datasheet Says:
     *		rfFreq = (pllFreq * xtalFreq) / 2^25
@@ -187,10 +186,7 @@ uint32_t frequencyToPLL(long rfFreq) {
 //Set the radio frequency.  Just a single SPI call,
 //but this is broken out to make it more convenient to change frequency on-the-fly
 //You must set this->pllFrequency before calling this
-
 void updateRadioFrequency() {
-
-  FURI_LOG_E(TAG, " ENTER - updateRadioFrequency()");
 
   // Set PLL frequency (this is a complicated math equation. See datasheet entry for SetRfFrequency)
   furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
@@ -219,8 +215,6 @@ void updateRadioFrequency() {
 */
 bool configSetFrequency(long frequencyInHz) {
 
-  FURI_LOG_E(TAG, " ENTER - configSetFrequency()");
-
   //Make sure the specified frequency is in the valid range.
   if (frequencyInHz < 150000000 || frequencyInHz > 960000000) { return false;}
 
@@ -235,8 +229,6 @@ bool configSetFrequency(long frequencyInHz) {
 // This is things like bandwidth, spreading factor, coding rate, etc.
 // This is broken into its own function because this command might get called frequently
 void updateModulationParameters() {
-
-  FURI_LOG_E(TAG, " ENTER - updateModulationParameters()");
 
   // Set modulation parameters
   // Modulation parameters are:
@@ -259,7 +251,6 @@ void updateModulationParameters() {
   furi_hal_spi_acquire(spi);
   
   if(furi_hal_spi_bus_tx(spi, spiBuff, 5, timeout)){ // Assuming 'timeout' is defined somewhere in the code
-    FURI_LOG_E(TAG," SetModulationParameters");
     furi_hal_spi_release(spi);
   } else {
     FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
@@ -271,7 +262,8 @@ void updateModulationParameters() {
   furi_delay_ms(100); // Give time for the radio to process command
 
   // Determine transmit timeout based on spreading factor
-  //TIMEOUT SET TO 1000, STILL CHECKING HOW TO FIX
+  // TODO: 
+  // TIMEOUT SET TO 1000, STILL CHECKING HOW TO FIX
   switch (spreadingFactor) {
     case 12:
       transmitTimeout = 1000; // 252000; // Actual tx time 126 seconds
@@ -314,8 +306,6 @@ void updateModulationParameters() {
 */
 bool configSetPreset(int preset) {
 
-  FURI_LOG_E(TAG, " ENTER - configSetPreset()");
-
   if (preset == PRESET_DEFAULT) {
     bandwidth = 0x04;            //125khz
     codingRate = 0x01;           //CR_4_5
@@ -353,8 +343,6 @@ bool configSetPreset(int preset) {
 */
 void configureRadioEssentials() {
 
-  FURI_LOG_E(TAG, " ENTER - configureRadioEssentials()");
-
   // Tell DIO2 to control the RF switch so we don't have to do it manually
   furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
   
@@ -364,14 +352,11 @@ void configureRadioEssentials() {
   spiBuff[1] = 0x01;  //Enable 
 
   if(furi_hal_spi_bus_tx(spi, spiBuff, 2, timeout)){
-    FURI_LOG_E(TAG," Set DIO2 As RfSwitch Ctrl");
     furi_hal_spi_release(spi);
   } else {
     FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
     furi_hal_spi_release(spi);
   }
-
-  //furi_hal_spi_release(spi);
 
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
   furi_delay_ms(100); // Give time for the radio to process command
@@ -388,14 +373,11 @@ void configureRadioEssentials() {
   spiBuff[1] = 0x01; // Packet Type: 0x00=GFSK, 0x01=LoRa
 
   if(furi_hal_spi_bus_tx(spi, spiBuff, 2, timeout)){
-    FURI_LOG_E(TAG," SetPacketType");
     furi_hal_spi_release(spi);
   } else {
     FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
     furi_hal_spi_release(spi);
   }
-
-  //furi_hal_spi_release(spi);
   
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
   furi_delay_ms(100); // Give time for radio to process the command
@@ -408,14 +390,11 @@ void configureRadioEssentials() {
   spiBuff[1] = 0x00; // Stop timer on: 0x00=SyncWord or header detection, 0x01=preamble detection
 
   if(furi_hal_spi_bus_tx(spi, spiBuff, 2, timeout)){
-    FURI_LOG_E(TAG," StopTimerOnPreamble");
     furi_hal_spi_release(spi);
   } else {
     FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
     furi_hal_spi_release(spi);
   }  
-
-  //furi_hal_spi_release(spi);
 
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
   furi_delay_ms(100); // Give time for radio to process the command
@@ -436,14 +415,11 @@ void configureRadioEssentials() {
   spiBuff[4] = 0x01; // paLut (reserved, always set to 1)
 
   if(furi_hal_spi_bus_tx(spi, spiBuff, 5, timeout)){
-    FURI_LOG_E(TAG," SetPaConfig");
     furi_hal_spi_release(spi);
   } else {
     FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
     furi_hal_spi_release(spi);
   }    
-
-  //furi_hal_spi_release(spi);
 
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
   furi_delay_ms(100); // Give time for radio to process the command
@@ -458,14 +434,11 @@ void configureRadioEssentials() {
   spiBuff[2] = 0x02; // Ramp time. Lookup table. See table 13-41. 0x02="40uS"
 
   if(furi_hal_spi_bus_tx(spi, spiBuff, 3, timeout)){
-    FURI_LOG_E(TAG," SetTxParams");
     furi_hal_spi_release(spi);
   } else {
     FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
     furi_hal_spi_release(spi);
   }    
-
-  //furi_hal_spi_release(spi);
 
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
   furi_delay_ms(100); // Give time for radio to process the command
@@ -480,14 +453,11 @@ void configureRadioEssentials() {
   spiBuff[1] = 0x00; // Number of symbols. Ping-pong example from Semtech uses 5
 
   if(furi_hal_spi_bus_tx(spi, spiBuff, 2, timeout)){
-    FURI_LOG_E(TAG," SetLoRaSymbNumTimeout");
     furi_hal_spi_release(spi);
   } else {
     FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
     furi_hal_spi_release(spi);
   }    
-
-  //furi_hal_spi_release(spi);
 
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
   furi_delay_ms(100); // Give time for radio to process the command
@@ -507,14 +477,11 @@ void configureRadioEssentials() {
   spiBuff[8] = 0x00; // DIO3 Mask LSB
 
   if(furi_hal_spi_bus_tx(spi, spiBuff, 9, timeout)){
-    FURI_LOG_E(TAG," SetDioIrqParams");
     furi_hal_spi_release(spi);
   } else {
     FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
     furi_hal_spi_release(spi);
   }  
-
-  //furi_hal_spi_release(spi);
 
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
   furi_delay_ms(100); // Give time for radio to process the command
@@ -632,7 +599,6 @@ void setModeReceive() {
   spiBuff[6] = 0x00;          //PacketParam6 = Invert IQ.  0x00 = Standard, 0x01 = Inverted
 
   if(furi_hal_spi_bus_tx(spi, spiBuff, 7, timeout)){
-    FURI_LOG_E(TAG," SetPacketParameters");
     furi_hal_spi_release(spi);
   } else {
     FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
@@ -655,24 +621,18 @@ void setModeReceive() {
   spiBuff[3] = 0xFF;          // ^^
 
   if(furi_hal_spi_bus_tx(spi, spiBuff, 4, timeout)){
-    FURI_LOG_E(TAG," SetRX");
     furi_hal_spi_release(spi);
   } else {
     FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
     furi_hal_spi_release(spi);
   }   
 
-  //furi_hal_spi_release(spi);
-
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
 
-  FURI_LOG_E(TAG," start wait for radio command completion...");
   waitForRadioCommandCompletion(100);
-  FURI_LOG_E(TAG," end wait for radio command completion...");
 
   // Remember that we're in receive mode so we don't need to run this code again unnecessarily
   inReceiveMode = true;
-  FURI_LOG_E(TAG," inReceiveMode = true");
 }
 
 /* Set radio into standby mode.
@@ -738,14 +698,11 @@ void transmit(uint8_t *data, int dataLen) {
     furi_hal_spi_bus_tx(spi, data + i, size, timeout); // Write the payload itself
   }
 
-  //FURI_LOG_E(TAG," data: %s", (char *)data);
-
   furi_hal_spi_release(spi);
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
   waitForRadioCommandCompletion(1000);   // Give time for radio to process the command
 
   // Transmit
-  FURI_LOG_E(TAG," Ready to TRANSMIT, send command");
   furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
 
   spiBuff[0] = 0x83;          // Opcode for SetTx command
@@ -759,11 +716,7 @@ void transmit(uint8_t *data, int dataLen) {
 
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
 
-  FURI_LOG_E(TAG," Wait for radio command completion starting");
-
   waitForRadioCommandCompletion(transmitTimeout); // Wait for tx to complete, with a timeout so we don't wait forever
-
-  FURI_LOG_E(TAG," Wait for radio command completion finished");
 
   // Remember that we are in Tx mode.  If we want to receive a packet, we need to switch into receiving mode
   inReceiveMode = false;
@@ -792,9 +745,7 @@ int lora_receive_async(u_int8_t* buff, int buffMaxLen) {
   // Radio pin DIO1 (interrupt) goes high when we have a packet ready. If it's low, there's no packet yet
   if (!furi_hal_gpio_read(pin_dio1)) { return -1; } // Return -1, meaning no packet ready
 
-  //+++++++++++++++++++++++++++++++++
   FURI_LOG_E(TAG,"packet ready... ");
-  //+++++++++++++++++++++++++++++++++
 
   // Tell the radio to clear the interrupt, and set the pin back inactive.
   while (furi_hal_gpio_read(pin_dio1)) {
@@ -844,9 +795,7 @@ int lora_receive_async(u_int8_t* buff, int buffMaxLen) {
   spiBuff[2] = 0xFF;          //Dummy.  Returns loraPacketLength
   spiBuff[3] = 0xFF;          //Dummy.  Returns memory offset (address)
 
-  //+++++++++++++++++++++++++++++++++++++++++++++
   furi_hal_spi_bus_rx(spi, spiBuff, 4, timeout);
-  //+++++++++++++++++++++++++++++++++++++++++++++
 
   furi_hal_spi_release(spi);
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
@@ -891,15 +840,9 @@ void regTest()
   spiBuff[3] =  0x00; 
   
   furi_hal_spi_bus_tx(spi, spiBuff, 4, timeout);
-
-  //for (index = 0; index < size; index++)
-  //{
-    furi_hal_spi_bus_rx(spi, &regValue, 1, timeout);
-  //}
+  furi_hal_spi_bus_rx(spi, &regValue, 1, timeout);
 
   furi_hal_spi_release(spi);
-  
-  FURI_LOG_E(TAG," REGISTER VALUE: %02x",regValue);
   
   furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
 }
@@ -961,15 +904,9 @@ void printRegisters(uint16_t Start, uint16_t End)
   uint16_t Loopv1, Loopv2, RegData;
 
   FURI_LOG_E(TAG,"Reg    0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F");
-  //Serial.print(F("Reg    0  1  2  3  4  5  6  7  8  9  A  B  C  D  E  F"));
-  //Serial.println();
 
   for (Loopv1 = Start; Loopv1 <= End;)           //32 lines
   {
-    //Serial.print(F("0x"));
-    //Serial.print((Loopv1), HEX);                 //print the register number
-    //Serial.print(F("  "));
-    
     FURI_LOG_E(TAG,"0x%02x ", Loopv1);
     
     for (Loopv2 = 0; Loopv2 <= 15; Loopv2++)
@@ -977,16 +914,13 @@ void printRegisters(uint16_t Start, uint16_t End)
       RegData = readRegister(Loopv1);
       if (RegData < 0x10)
       {
-        //FURI_LOG_E(TAG,"0"); //Serial.print(F("0"));
+        //FURI_LOG_E(TAG,"0");
       }
-      //Serial.print(RegData, HEX);                //print the register number
-      //Serial.print(F(" "));
       
       FURI_LOG_E(TAG,"0x%02x ", RegData);
       
       Loopv1++;
     }
-    //Serial.println();
     FURI_LOG_E(TAG,"\n");
   }
 }
@@ -1015,29 +949,17 @@ bool begin() {
 
     checkBusy();
 
-    //furi_hal_gpio_init(pin_dio1,GpioModeInput,GpioPullUp,GpioSpeedVeryHigh);
-
     //Ensure SPI communication is working with the radio
     FURI_LOG_E(TAG,"SANITYCHECK...");
     bool success = sanityCheck();
     if (!success) { return false; }
 
-    //printRegisters(0x800, 0x9FF);
-
     //Run the bare-minimum required SPI commands to set up the radio to use
     configureRadioEssentials();
-
-    //uint16_t lora_data  = getSyncWord();
-
-    //FURI_LOG_E(TAG," SYNC WORD: %02x", lora_data);
-
-    //regTest();
   
     uint32_t lora_freq  = getFreqInt();
 
     FURI_LOG_E(TAG," FREQUENCY: %ld", lora_freq);
-
-    //printRegisters(0x800, 0x9FF);
 
     return true;  //Return success that we set up the radio
 }

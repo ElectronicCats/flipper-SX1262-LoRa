@@ -50,9 +50,6 @@ typedef struct {
     VariableItemList* variable_item_list;
     Submenu* submenu;
 
-    // Storage* storage;
-    // File* capture_file;
-
     uint8_t config_bw;
     uint8_t config_frequency;
     uint8_t config_sf;
@@ -187,10 +184,6 @@ LoRaRelay* lora_relay_alloc() {
     View* view = NULL;
 
     instance->gui = furi_record_open(RECORD_GUI);
-    // instance->dialogs = furi_record_open(RECORD_DIALOGS);
-    // instance->storage = furi_record_open(RECORD_STORAGE);
-
-    // instance->capture_file = storage_file_alloc(instance->storage);
 
     instance->view_dispatcher = view_dispatcher_alloc();
     view_dispatcher_enable_queue(instance->view_dispatcher);
@@ -281,16 +274,13 @@ void lora_relay_free(LoRaRelay* instance) {
     submenu_free(instance->submenu);
 
     view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewConfigure);
-
-    // storage_file_free(instance->capture_file);
     variable_item_list_free(instance->variable_item_list);
 
     view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewLoRaRX);
     view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewLoRaTX);
+    // view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewLoRaAbout);    
     view_lora_rx_free(instance->view_lora_rx);
-
-    // view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewLoRaAbout);
-    // view_lora_tx_free(instance->view_lora_tx);
+    view_lora_tx_free(instance->view_lora_tx);
 
     view_dispatcher_free(instance->view_dispatcher);
     furi_record_close(RECORD_GUI);
