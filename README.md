@@ -5,11 +5,11 @@ Requires the Electronic Cats Flipper Zero "Sub-GHz" Shield.
 ## Features
   * Reads and displays data sniffed from LoRa devices
   * Customizable LoRa Parameters
-  <-- * Hexadecimal or Normal data output format selector -->
+  <!-- * Hexadecimal or Normal data output format selector -->
   * Exports sniffing sesions in LOG files to the SD card
   * Sending LoRa packets from the LOG file
-  <-- * Saves the recent packet structures, then allows you to modify & inject them again -->
-<-- ## How to use the app -->
+  <!-- * Saves the recent packet structures, then allows you to modify & inject them again -->
+<!-- ## How to use the app -->
 
 ## Maintainer
 
