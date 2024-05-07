@@ -9,7 +9,7 @@ Work with LoRa radio communication signals. Now you can interact with LoRa trans
 
 <p align=center>
  <a href="https://github.com/ElectronicCats/flipper-SX1262-LoRa/wiki">
-  <img src="https://github.com/ElectronicCats/flipper-SX1262-LoRa/blob/main/assets/ec_wiki_button.png" alt="Wiki redirection button" width=200 />
+  <img src="https://github.com/ElectronicCats/flipper-SX1262-LoRa/blob/main/assets/ec_wki_button.png" alt="Wiki redirection button" width=200 />
  </a>
 </p>
 
