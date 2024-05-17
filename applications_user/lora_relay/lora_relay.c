@@ -13,6 +13,7 @@
 #include <gui/modules/submenu.h>
 #include <gui/modules/variable_item_list.h>
 #include <dialogs/dialogs.h>
+#include <gui/modules/widget.h>
 
 #include <storage/storage.h>
 
@@ -39,12 +40,18 @@ bool configSetFrequency(long frequencyInHz);
 bool configSetBandwidth(int bw);
 bool configSetSpreadingFactor(int sf);
 
+// Our application menu has 2 items.  You can add more items if you want.
+typedef enum {
+    LoRaRelaySubmenuIndexConfigure,
+    LoRaRelaySubmenuIndexAbout,
+} LoRaRelaySubmenuIndex;
+
 typedef struct {
     Gui* gui;
     ViewDispatcher* view_dispatcher;
     ViewLoRaRX* view_lora_rx;
     ViewLoRaTX* view_lora_tx;
-
+    Widget* widget_about; // The about screen
     DialogsApp* dialogs;
 
     VariableItemList* variable_item_list;
@@ -60,7 +67,7 @@ typedef enum {
     LoRaRelayViewConfigure,
     LoRaRelayViewLoRaRX,
     LoRaRelayViewLoRaTX,
-    // LoRaRelayViewLoRaAbout,
+    LoRaRelayViewLoRaAbout,
 } LoRaRelayView;
 
 const uint8_t config_bw_value[] = {
@@ -120,6 +127,16 @@ const char* const config_sf_text[] = {
 static void lora_relay_submenu_callback(void* context, uint32_t index) {
     LoRaRelay* instance = (LoRaRelay*)context;
     view_dispatcher_switch_to_view(instance->view_dispatcher, index);
+    // switch(index) {
+    //     case LoRaRelaySubmenuIndexConfigure:
+	//         view_dispatcher_switch_to_view(instance->view_dispatcher, LoRaRelayViewSubmenu);
+	//         break;
+    // case LoRaRelaySubmenuIndexAbout:
+	//         view_dispatcher_switch_to_view(instance->view_dispatcher, LoRaRelayViewLoRaAbout);
+	//         break;
+    // default:
+	//     break;
+    // }
 }
 
 static uint32_t lora_relay_previous_callback(void* context) {
@@ -260,12 +277,24 @@ LoRaRelay* lora_relay_alloc() {
         LoRaRelayViewLoRaTX,
         lora_relay_submenu_callback,
         instance);
-    // submenu_add_item(
-    //     instance->submenu,
-    //     "About",
-    //     LoRaRXViewLoRaAbout,
-    //     lora_relay_submenu_callback,
-    //     instance);    
+    submenu_add_item(
+        instance->submenu,
+        "About",
+        LoRaRelayViewLoRaAbout,
+        lora_relay_submenu_callback,
+        instance); 
+        
+    instance->widget_about = widget_alloc();
+    widget_add_text_scroll_element(
+        instance->widget_about,
+        0,
+        0,
+        128,
+        64,
+        "This is a sample application.\n---\nReplace code and message\nwith your content!\n\nauthor: @codeallnight\nhttps://discord.com/invite/NsjCvqwPAd\nhttps://youtube.com/@MrDerekJamison");
+    view_set_previous_callback(widget_get_view(instance->widget_about), lora_relay_previous_callback);
+    view_dispatcher_add_view(instance->view_dispatcher, LoRaRelayViewLoRaAbout, widget_get_view(instance->widget_about));    
+           
     return instance;
 }
 
@@ -278,7 +307,8 @@ void lora_relay_free(LoRaRelay* instance) {
 
     view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewLoRaRX);
     view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewLoRaTX);
-    // view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewLoRaAbout);    
+    view_dispatcher_remove_view(instance->view_dispatcher, LoRaRelayViewLoRaAbout);
+    widget_free(instance->widget_about);  
     view_lora_rx_free(instance->view_lora_rx);
     view_lora_tx_free(instance->view_lora_tx);
 
