@@ -1,0 +1,15 @@
+App(
+    appid="lora_app",
+    name="[WIP] LoRa Sample App",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="main_lora_app",
+    stack_size=4 * 1024,
+    requires=[
+        "gui",
+    ],
+    order=10,
+    fap_icon="cat.png",
+    fap_category="Misc",
+    fap_icon_assets="assets",
+    fap_description="LoRa Sample App.  This is intended to be used as a starting point for new applications with one primary screen.",
+)
