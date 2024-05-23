@@ -9,7 +9,11 @@
 #include <gui/modules/variable_item_list.h>
 #include <notification/notification.h>
 #include <notification/notification_messages.h>
+
+#include <storage/storage.h>
+
 #include "lora_app_icons.h"
+
 
 static FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
 
@@ -35,7 +39,7 @@ bool configSetSpreadingFactor(int sf);
 // Our application menu has 3 items.  You can add more items if you want.
 typedef enum {
     LoRaSubmenuIndexConfigure,
-    LoRaSubmenuIndexGame,
+    LoRaSubmenuIndexSniffer,
     LoRaSubmenuIndexAbout,
 } LoRaSubmenuIndex;
 
@@ -44,7 +48,7 @@ typedef enum {
     LoRaViewSubmenu, // The menu when the app starts
     LoRaViewTextInput, // Input for configuring text settings
     LoRaViewConfigure, // The configuration screen
-    LoRaViewGame, // The main screen
+    LoRaViewSniffer, // The main screen
     LoRaViewAbout, // The about screen with directions, link to social channel, etc.
 } LoRaView;
 
@@ -59,10 +63,10 @@ typedef struct {
     Submenu* submenu; // The application menu
     TextInput* text_input; // The text input screen
     VariableItemList* variable_item_list_config; // The configuration screen
-    View* view_game; // The main screen
+    View* view_sniffer; // The main screen
     Widget* widget_about; // The about screen
 
-    VariableItem* setting_2_item; // The name setting item (so we can update the text)
+    VariableItem* config_freq_item; // The name setting item (so we can update the text)
     char* temp_buffer; // Temporary buffer for text input
     uint32_t temp_buffer_size; // Size of temporary buffer
 
@@ -70,10 +74,12 @@ typedef struct {
 } LoRaApp;
 
 typedef struct {
-    uint32_t setting_1_index; // The team color setting index
-    FuriString* setting_2_name; // The name setting
+    FuriString* config_freq_name; // The name setting    
+    uint32_t config_bw_index; // The team color setting index
+    uint32_t config_sf_index; // The team color setting index
+
     uint8_t x; // The x coordinate
-} LoRaGameModel;
+} LoRaSnifferModel;
 
 /**
  * @brief      Callback for exiting the application.
@@ -123,8 +129,8 @@ static void lora_submenu_callback(void* context, uint32_t index) {
     case LoRaSubmenuIndexConfigure:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewConfigure);
         break;
-    case LoRaSubmenuIndexGame:
-        view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewGame);
+    case LoRaSubmenuIndexSniffer:
+        view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewSniffer);
         break;
     case LoRaSubmenuIndexAbout:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewAbout);
@@ -134,18 +140,73 @@ static void lora_submenu_callback(void* context, uint32_t index) {
     }
 }
 
+const uint8_t config_bw_values[] = {
+    0x00,
+    0x08,
+    0x01,
+    0x09,
+    0x02,
+    0x0A, 
+    0x03,
+    0x04,
+    0x05,
+    0x06,
+};
+const char* const config_bw_names[] = {
+    "7.81 kHz",
+    "10.42 kHz",
+    "15.63 kHz",
+    "20.83 kHz",
+    "31.25 kHz",
+    "41.67 kHz",
+    "62.50 kHz",
+    "125 kHz",
+    "250 kHz",
+    "500 kHz",
+};
+
+const uint8_t config_sf_values[] = {
+    0x05,
+    0x06,
+    0x07,
+    0x08,
+    0x09,
+    0x0A,
+    0x0B,
+    0x0C,
+};
+const char* const config_sf_names[] = {
+    "SF5",
+    "SF6",
+    "SF7",
+    "SF8",
+    "SF9",
+    "SF10",
+    "SF11",
+    "SF12",
+};
+
 /**
  * Our 1st sample setting is a team color.  We have 3 options: red, green, and blue.
 */
-static const char* setting_1_config_label = "Team color";
-static uint8_t setting_1_values[] = {1, 2, 4};
-static char* setting_1_names[] = {"Red", "Green", "Blue"};
-static void lora_setting_1_change(VariableItem* item) {
+static const char* config_bw_config_label = "Bandwidth";
+
+static void lora_config_bw_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
-    variable_item_set_current_value_text(item, setting_1_names[index]);
-    LoRaGameModel* model = view_get_model(app->view_game);
-    model->setting_1_index = index;
+    variable_item_set_current_value_text(item, config_bw_names[index]);
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_bw_index = index;
+}
+
+static const char* config_sf_config_label = "Spread Factor";
+
+static void lora_config_sf_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_sf_names[index]);
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_sf_index = index;
 }
 
 /**
@@ -153,19 +214,19 @@ static void lora_setting_1_change(VariableItem* item) {
  * setting we use a text input screen to allow the user to enter a name.  This function is
  * called when the user clicks OK on the text input screen.
 */
-static const char* setting_2_config_label = "Name";
-static const char* setting_2_entry_text = "Enter name";
-static const char* setting_2_default_value = "Bob";
-static void lora_setting_2_text_updated(void* context) {
+static const char* config_freq_config_label = "Frequency";
+static const char* config_freq_entry_text = "Enter frequency (MHz)";
+static const char* config_freq_default_value = "915.0";
+static void lora_config_freq_text_updated(void* context) {
     LoRaApp* app = (LoRaApp*)context;
     bool redraw = true;
     with_view_model(
-        app->view_game,
-        LoRaGameModel * model,
+        app->view_sniffer,
+        LoRaSnifferModel * model,
         {
-            furi_string_set(model->setting_2_name, app->temp_buffer);
+            furi_string_set(model->config_freq_name, app->temp_buffer);
             variable_item_set_current_value_text(
-                app->setting_2_item, furi_string_get_cstr(model->setting_2_name));
+                app->config_freq_item, furi_string_get_cstr(model->config_freq_name));
         },
         redraw);
     view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewConfigure);
@@ -183,19 +244,19 @@ static void lora_setting_item_clicked(void* context, uint32_t index) {
     index++; // The index starts at zero, but we want to start at 1.
 
     // Our configuration UI has the 2nd item as a text field.
-    if(index == 2) {
+    if(index == 1) {
         // Header to display on the text input screen.
-        text_input_set_header_text(app->text_input, setting_2_entry_text);
+        text_input_set_header_text(app->text_input, config_freq_entry_text);
 
         // Copy the current name into the temporary buffer.
         bool redraw = false;
         with_view_model(
-            app->view_game,
-            LoRaGameModel * model,
+            app->view_sniffer,
+            LoRaSnifferModel * model,
             {
                 strncpy(
                     app->temp_buffer,
-                    furi_string_get_cstr(model->setting_2_name),
+                    furi_string_get_cstr(model->config_freq_name),
                     app->temp_buffer_size);
             },
             redraw);
@@ -204,7 +265,7 @@ static void lora_setting_item_clicked(void* context, uint32_t index) {
         bool clear_previous_text = false;
         text_input_set_result_callback(
             app->text_input,
-            lora_setting_2_text_updated,
+            lora_config_freq_text_updated,
             app,
             app->temp_buffer,
             app->temp_buffer_size,
@@ -220,13 +281,13 @@ static void lora_setting_item_clicked(void* context, uint32_t index) {
 }
 
 /**
- * @brief      Callback for drawing the game screen.
+ * @brief      Callback for drawing the sniffer screen.
  * @details    This function is called when the screen needs to be redrawn, like when the model gets updated.
  * @param      canvas  The canvas to draw on.
  * @param      model   The model - MyModel object.
 */
-static void lora_view_game_draw_callback(Canvas* canvas, void* model) {
-    LoRaGameModel* my_model = (LoRaGameModel*)model;
+static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
+    LoRaSnifferModel* my_model = (LoRaSnifferModel*)model;
     canvas_draw_icon(canvas, my_model->x, 20, &I_glyph_1_14x40);
     canvas_draw_str(canvas, 1, 10, "LEFT/RIGHT to change x");
     FuriString* xstr = furi_string_alloc();
@@ -236,11 +297,11 @@ static void lora_view_game_draw_callback(Canvas* canvas, void* model) {
     canvas_draw_str(canvas, 44, 36, furi_string_get_cstr(xstr));
     furi_string_printf(
         xstr,
-        "team: %s (%u)",
-        setting_1_names[my_model->setting_1_index],
-        setting_1_values[my_model->setting_1_index]);
+        "Bandwidth: %s (%u)",
+        config_bw_names[my_model->config_bw_index],
+        config_bw_values[my_model->config_bw_index]);
     canvas_draw_str(canvas, 44, 48, furi_string_get_cstr(xstr));
-    furi_string_printf(xstr, "name: %s", furi_string_get_cstr(my_model->setting_2_name));
+    furi_string_printf(xstr, "name: %s", furi_string_get_cstr(my_model->config_freq_name));
     canvas_draw_str(canvas, 44, 60, furi_string_get_cstr(xstr));
     furi_string_free(xstr);
 }
@@ -250,32 +311,32 @@ static void lora_view_game_draw_callback(Canvas* canvas, void* model) {
  * @details    This function is called when the timer is elapsed.  We use this to queue a redraw event.
  * @param      context  The context - LoRaApp object.
 */
-static void lora_view_game_timer_callback(void* context) {
+static void lora_view_sniffer_timer_callback(void* context) {
     LoRaApp* app = (LoRaApp*)context;
     view_dispatcher_send_custom_event(app->view_dispatcher, LoRaEventIdRedrawScreen);
 }
 
 /**
- * @brief      Callback when the user starts the game screen.
- * @details    This function is called when the user enters the game screen.  We start a timer to
+ * @brief      Callback when the user starts the sniffer screen.
+ * @details    This function is called when the user enters the sniffer screen.  We start a timer to
  *           redraw the screen periodically (so the random number is refreshed).
  * @param      context  The context - LoRaApp object.
 */
-static void lora_view_game_enter_callback(void* context) {
+static void lora_view_sniffer_enter_callback(void* context) {
     uint32_t period = furi_ms_to_ticks(200);
     LoRaApp* app = (LoRaApp*)context;
     furi_assert(app->timer == NULL);
     app->timer =
-        furi_timer_alloc(lora_view_game_timer_callback, FuriTimerTypePeriodic, context);
+        furi_timer_alloc(lora_view_sniffer_timer_callback, FuriTimerTypePeriodic, context);
     furi_timer_start(app->timer, period);
 }
 
 /**
- * @brief      Callback when the user exits the game screen.
- * @details    This function is called when the user exits the game screen.  We stop the timer.
+ * @brief      Callback when the user exits the sniffer screen.
+ * @details    This function is called when the user exits the sniffer screen.  We stop the timer.
  * @param      context  The context - LoRaApp object.
 */
-static void lora_view_game_exit_callback(void* context) {
+static void lora_view_sniffer_exit_callback(void* context) {
     LoRaApp* app = (LoRaApp*)context;
     furi_timer_stop(app->timer);
     furi_timer_free(app->timer);
@@ -288,7 +349,7 @@ static void lora_view_game_exit_callback(void* context) {
  * @param      event    The event id - LoRaEventId value.
  * @param      context  The context - LoRaApp object.
 */
-static bool lora_view_game_custom_event_callback(uint32_t event, void* context) {
+static bool lora_view_sniffer_custom_event_callback(uint32_t event, void* context) {
     LoRaApp* app = (LoRaApp*)context;
     switch(event) {
     case LoRaEventIdRedrawScreen:
@@ -296,7 +357,7 @@ static bool lora_view_game_custom_event_callback(uint32_t event, void* context) 
         {
             bool redraw = true;
             with_view_model(
-                app->view_game, LoRaGameModel * _model, { UNUSED(_model); }, redraw);
+                app->view_sniffer, LoRaSnifferModel * _model, { UNUSED(_model); }, redraw);
             return true;
         }
     case LoRaEventIdOkPressed:
@@ -305,8 +366,8 @@ static bool lora_view_game_custom_event_callback(uint32_t event, void* context) 
             float frequency;
             bool redraw = false;
             with_view_model(
-                app->view_game,
-                LoRaGameModel * model,
+                app->view_sniffer,
+                LoRaSnifferModel * model,
                 { frequency = model->x * 100 + 100; },
                 redraw);
             furi_hal_speaker_start(frequency, 1.0);
@@ -321,21 +382,21 @@ static bool lora_view_game_custom_event_callback(uint32_t event, void* context) 
 }
 
 /**
- * @brief      Callback for game screen input.
- * @details    This function is called when the user presses a button while on the game screen.
+ * @brief      Callback for sniffer screen input.
+ * @details    This function is called when the user presses a button while on the sniffer screen.
  * @param      event    The event - InputEvent object.
  * @param      context  The context - LoRaApp object.
  * @return     true if the event was handled, false otherwise.
 */
-static bool lora_view_game_input_callback(InputEvent* event, void* context) {
+static bool lora_view_sniffer_input_callback(InputEvent* event, void* context) {
     LoRaApp* app = (LoRaApp*)context;
     if(event->type == InputTypeShort) {
         if(event->key == InputKeyLeft) {
             // Left button clicked, reduce x coordinate.
             bool redraw = true;
             with_view_model(
-                app->view_game,
-                LoRaGameModel * model,
+                app->view_sniffer,
+                LoRaSnifferModel * model,
                 {
                     if(model->x > 0) {
                         model->x--;
@@ -346,8 +407,8 @@ static bool lora_view_game_input_callback(InputEvent* event, void* context) {
             // Right button clicked, increase x coordinate.
             bool redraw = true;
             with_view_model(
-                app->view_game,
-                LoRaGameModel * model,
+                app->view_sniffer,
+                LoRaSnifferModel * model,
                 {
                     // Should we have some maximum value?
                     model->x++;
@@ -374,7 +435,7 @@ static bool lora_view_game_input_callback(InputEvent* event, void* context) {
 */
 static LoRaApp* lora_app_alloc() {
     LoRaApp* app = (LoRaApp*)malloc(sizeof(LoRaApp));
-
+    VariableItem* item;
     Gui* gui = furi_record_open(RECORD_GUI);
 
     app->view_dispatcher = view_dispatcher_alloc();
@@ -386,7 +447,7 @@ static LoRaApp* lora_app_alloc() {
     submenu_add_item(
         app->submenu, "Config", LoRaSubmenuIndexConfigure, lora_submenu_callback, app);
     submenu_add_item(
-        app->submenu, "Play", LoRaSubmenuIndexGame, lora_submenu_callback, app);
+        app->submenu, "Play", LoRaSubmenuIndexSniffer, lora_submenu_callback, app);
     submenu_add_item(
         app->submenu, "About", LoRaSubmenuIndexAbout, lora_submenu_callback, app);
     view_set_previous_callback(submenu_get_view(app->submenu), lora_navigation_exit_callback);
@@ -402,22 +463,39 @@ static LoRaApp* lora_app_alloc() {
 
     app->variable_item_list_config = variable_item_list_alloc();
     variable_item_list_reset(app->variable_item_list_config);
-    VariableItem* item = variable_item_list_add(
-        app->variable_item_list_config,
-        setting_1_config_label,
-        COUNT_OF(setting_1_values),
-        lora_setting_1_change,
-        app);
-    uint8_t setting_1_index = 0;
-    variable_item_set_current_value_index(item, setting_1_index);
-    variable_item_set_current_value_text(item, setting_1_names[setting_1_index]);
 
-    FuriString* setting_2_name = furi_string_alloc();
-    furi_string_set_str(setting_2_name, setting_2_default_value);
-    app->setting_2_item = variable_item_list_add(
-        app->variable_item_list_config, setting_2_config_label, 1, NULL, NULL);
+
+    FuriString* config_freq_name = furi_string_alloc();
+    furi_string_set_str(config_freq_name, config_freq_default_value);
+    app->config_freq_item = variable_item_list_add(
+        app->variable_item_list_config, config_freq_config_label, 1, NULL, NULL);
     variable_item_set_current_value_text(
-        app->setting_2_item, furi_string_get_cstr(setting_2_name));
+        app->config_freq_item, furi_string_get_cstr(config_freq_name));
+
+
+    item = variable_item_list_add(
+        app->variable_item_list_config,
+        config_bw_config_label,
+        COUNT_OF(config_bw_values),
+        lora_config_bw_change,
+        app);
+    uint8_t config_bw_index = 7;
+    variable_item_set_current_value_index(item, config_bw_index);
+    variable_item_set_current_value_text(item, config_bw_names[config_bw_index]);
+
+    item = variable_item_list_add(
+        app->variable_item_list_config,
+        config_sf_config_label,
+        COUNT_OF(config_sf_values),
+        lora_config_sf_change,
+        app);
+    uint8_t config_sf_index = 3;
+    variable_item_set_current_value_index(item, config_sf_index);
+    variable_item_set_current_value_text(item, config_sf_names[config_sf_index]);
+
+
+
+
     variable_item_list_set_enter_callback(
         app->variable_item_list_config, lora_setting_item_clicked, app);
 
@@ -429,20 +507,23 @@ static LoRaApp* lora_app_alloc() {
         LoRaViewConfigure,
         variable_item_list_get_view(app->variable_item_list_config));
 
-    app->view_game = view_alloc();
-    view_set_draw_callback(app->view_game, lora_view_game_draw_callback);
-    view_set_input_callback(app->view_game, lora_view_game_input_callback);
-    view_set_previous_callback(app->view_game, lora_navigation_submenu_callback);
-    view_set_enter_callback(app->view_game, lora_view_game_enter_callback);
-    view_set_exit_callback(app->view_game, lora_view_game_exit_callback);
-    view_set_context(app->view_game, app);
-    view_set_custom_callback(app->view_game, lora_view_game_custom_event_callback);
-    view_allocate_model(app->view_game, ViewModelTypeLockFree, sizeof(LoRaGameModel));
-    LoRaGameModel* model = view_get_model(app->view_game);
-    model->setting_1_index = setting_1_index;
-    model->setting_2_name = setting_2_name;
+    app->view_sniffer = view_alloc();
+    view_set_draw_callback(app->view_sniffer, lora_view_sniffer_draw_callback);
+    view_set_input_callback(app->view_sniffer, lora_view_sniffer_input_callback);
+    view_set_previous_callback(app->view_sniffer, lora_navigation_submenu_callback);
+    view_set_enter_callback(app->view_sniffer, lora_view_sniffer_enter_callback);
+    view_set_exit_callback(app->view_sniffer, lora_view_sniffer_exit_callback);
+    view_set_context(app->view_sniffer, app);
+    view_set_custom_callback(app->view_sniffer, lora_view_sniffer_custom_event_callback);
+    view_allocate_model(app->view_sniffer, ViewModelTypeLockFree, sizeof(LoRaSnifferModel));
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+
+    model->config_freq_name = config_freq_name;
+    model->config_bw_index = config_bw_index;
+    model->config_sf_index = config_sf_index;
+    
     model->x = 0;
-    view_dispatcher_add_view(app->view_dispatcher, LoRaViewGame, app->view_game);
+    view_dispatcher_add_view(app->view_dispatcher, LoRaViewSniffer, app->view_sniffer);
 
     app->widget_about = widget_alloc();
     widget_add_text_scroll_element(
@@ -482,8 +563,8 @@ static void lora_app_free(LoRaApp* app) {
     free(app->temp_buffer);
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewAbout);
     widget_free(app->widget_about);
-    view_dispatcher_remove_view(app->view_dispatcher, LoRaViewGame);
-    view_free(app->view_game);
+    view_dispatcher_remove_view(app->view_dispatcher, LoRaViewSniffer);
+    view_free(app->view_sniffer);
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewConfigure);
     variable_item_list_free(app->variable_item_list_config);
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewSubmenu);
