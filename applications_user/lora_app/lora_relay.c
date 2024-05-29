@@ -10,6 +10,7 @@
 #include <notification/notification.h>
 #include <notification/notification_messages.h>
 
+#include <dialogs/dialogs.h>
 #include <storage/storage.h>
 
 #include "lora_app_icons.h"
@@ -227,10 +228,17 @@ static void lora_config_freq_text_updated(void* context) {
             furi_string_set(model->config_freq_name, app->temp_buffer);
             variable_item_set_current_value_text(
                 app->config_freq_item, furi_string_get_cstr(model->config_freq_name));
+
+            const char* freq_str = furi_string_get_cstr(model->config_freq_name);
+            float freq_value = strtof(freq_str, NULL);
+            FURI_LOG_E(TAG, "abandon hope all ye who enter here");
+            FURI_LOG_E(TAG,"Frequency = %d", (int)(freq_value*1000000));
+            configSetFrequency((int)(freq_value*1000000));
         },
         redraw);
     view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewConfigure);
 }
+
 
 /**
  * @brief      Callback when item in configuration screen is clicked.
@@ -591,7 +599,22 @@ int32_t main_lora_app(void* _p) {
 
     abandone();
 
-    begin();    
+    if(!begin()){
+
+        DialogsApp* dialogs = furi_record_open(RECORD_DIALOGS);
+        DialogMessage* message = dialog_message_alloc();
+        dialog_message_set_text(
+            message,
+            "Error!\nSubGHz add-on module failed to start\n\nCheck that the module is plugged in",
+            0,
+            0,
+            AlignLeft,
+            AlignTop);
+        dialog_message_show(dialogs, message);
+        dialog_message_free(message);
+        furi_record_close(RECORD_DIALOGS);
+        return 0;
+    }    
 
     LoRaApp* app = lora_app_alloc();
     view_dispatcher_run(app->view_dispatcher);
