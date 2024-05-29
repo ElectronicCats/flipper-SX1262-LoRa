@@ -580,6 +580,42 @@ bool configSetSpreadingFactor(int sf) {
   return true;
 }
 
+void setPacketParams(uint16_t packetParam1, uint8_t packetParam2, uint8_t packetParam3, uint8_t packetParam4, uint8_t packetParam5) {
+  // Order is preamble, header type, packet length, CRC, IQ
+
+  uint8_t preambleMSB = packetParam1 >> 8;
+  uint8_t preambleLSB = packetParam1 & 0xFF;
+
+  //savedPacketParam1 = packetParam1;
+  //savedPacketParam2 = packetParam2;
+  //savedPacketParam3 = packetParam3;
+  //savedPacketParam4 = packetParam4;
+  //savedPacketParam5 = packetParam5;
+  
+  spiBuff[0] = 0x8C;          //Opcode for "SetPacketParameters"
+  spiBuff[1] = preambleMSB;   //Preamble Len MSB
+  spiBuff[2] = preambleLSB;   //Preamble Len LSB
+  spiBuff[3] = packetParam2;  //Header Type. 0x00 = Variable Len, 0x01 = Fixed Length
+  spiBuff[4] = packetParam3;  //Payload Length (Max is 255 bytes)
+  spiBuff[5] = packetParam4;  //0x00 = Off, 0x01 = on
+  spiBuff[6] = packetParam5;  //0x00 = Standard, 0x01 = Inverted
+
+
+  // Acquire SPI and write command
+  furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
+  furi_hal_spi_acquire(spi);
+
+  if (furi_hal_spi_bus_tx(spi, spiBuff, 7, timeout)) {
+    furi_hal_spi_release(spi);
+  } else {
+    FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx or furi_hal_spi_bus_rx failed.");
+    furi_hal_spi_release(spi);
+  }
+
+  furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
+  waitForRadioCommandCompletion(100);
+}
+
 //Sets the radio into receive mode, allowing it to listen for incoming packets.
 //If radio is already in receive mode, this does nothing.
 //There's no such thing as "setModeTransmit" because it is set automatically when transmit() is called
