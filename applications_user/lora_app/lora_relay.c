@@ -15,6 +15,10 @@
 
 #include "lora_app_icons.h"
 
+#define PATHAPP "apps_data/lora"
+#define PATHAPPEXT EXT_PATH(PATHAPP)
+#define PATHLORA PATHAPPEXT "/data.log"
+#define LORA_LOG_FILE_EXTENSION ".log"
 
 static FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
 
@@ -23,7 +27,11 @@ const GpioPin* const pin_back = &gpio_button_back;
 
 #define TAG "LoRa"
 
+uint8_t receiveBuff[255];
+char asciiBuff[255];
+
 void abandone();
+int16_t getRSSI();
 void configureRadioEssentials();
 bool begin();
 bool sanityCheck();
@@ -351,6 +359,16 @@ static void lora_setting_item_clicked(void* context, uint32_t index) {
     }
 }
 
+void bytesToAscii(uint8_t* buffer, uint8_t length) {
+    uint8_t i;
+    for (i = 0; i < length; ++i) {
+        asciiBuff[i * 2] = "0123456789ABCDEF"[buffer[i] >> 4]; // High nibble
+        asciiBuff[i * 2 + 1] = "0123456789ABCDEF"[buffer[i] & 0x0F]; // Low nibble
+    }
+    asciiBuff[length * 2] = '\0'; // Null-terminate the string
+    FURI_LOG_E(TAG,"OUT bytesToAscii ");
+}
+
 /**
  * @brief      Callback for drawing the sniffer screen.
  * @details    This function is called when the screen needs to be redrawn, like when the model gets updated.
@@ -360,10 +378,38 @@ static void lora_setting_item_clicked(void* context, uint32_t index) {
 static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
     LoRaSnifferModel* my_model = (LoRaSnifferModel*)model;
     canvas_draw_icon(canvas, my_model->x, 20, &I_glyph_1_14x40);
-    canvas_draw_str(canvas, 1, 10, "LEFT/RIGHT to change x");
+
+        //Receive a packet over radio
+    int bytesRead = lora_receive_async(receiveBuff, sizeof(receiveBuff));
+
+    if (bytesRead > -1) {
+        FURI_LOG_E(TAG,"Packet received... ");
+        receiveBuff[bytesRead] = '\0';
+        
+        // if(flag_file) {
+        //     storage_file_write(model->file, receiveBuff, bytesRead);
+        //     storage_file_write(model->file, "\n", 1);
+            
+        // }
+
+        FURI_LOG_E(TAG,"%s",receiveBuff);  
+        bytesToAscii(receiveBuff, 16);
+        asciiBuff[17] = '.';
+        asciiBuff[18] = '.';
+        asciiBuff[19] = '.';
+        asciiBuff[20] = '\0';    
+    }
+    //canvas_draw_str(canvas, 1, 10, "LEFT/RIGHT to change x");
+    canvas_draw_str(canvas, 1, 10, (const char*)receiveBuff);
+
     FuriString* xstr = furi_string_alloc();
+
+    furi_string_printf(xstr, "RSSI: %d  ", getRSSI());
+    canvas_draw_str(canvas, 60, 10, furi_string_get_cstr(xstr));
+
     furi_string_printf(xstr, "x: %u  OK=play tone", my_model->x);
     canvas_draw_str(canvas, 44, 24, furi_string_get_cstr(xstr));
+
     furi_string_printf(xstr, "random: %u", (uint8_t)(furi_hal_random_get() % 256));
     canvas_draw_str(canvas, 44, 36, furi_string_get_cstr(xstr));
     furi_string_printf(

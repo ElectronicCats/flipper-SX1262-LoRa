@@ -53,6 +53,11 @@ void abandone() {
     FURI_LOG_E(TAG, "abandon hope all ye who enter here");
 }
 
+int16_t getRSSI()
+{
+  return rssi;
+}
+
 void checkBusy()
 {
   uint8_t busy_timeout_cnt;
