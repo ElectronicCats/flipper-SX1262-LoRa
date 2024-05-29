@@ -76,8 +76,11 @@ typedef struct {
 
 typedef struct {
     FuriString* config_freq_name; // The name setting    
-    uint32_t config_bw_index; // The team color setting index
-    uint32_t config_sf_index; // The team color setting index
+    uint32_t config_bw_index; // Bandwidth setting index
+    uint32_t config_sf_index; // Spread Factor setting index
+    uint32_t config_header_type_index; // Spread Factor setting index
+    uint32_t config_crc_index; // Spread Factor setting index
+    uint32_t config_iq_index; // Spread Factor setting index
 
     uint8_t x; // The x coordinate
 } LoRaSnifferModel;
@@ -187,6 +190,36 @@ const char* const config_sf_names[] = {
     "SF12",
 };
 
+//Header Type. 0x00 = Variable Len, 0x01 = Fixed Length
+const uint8_t config_header_type_values[] = {
+    0x00,
+    0x01,
+};
+const char* const config_header_type_names[] = {
+    "Variable Len",
+    "Fixed Length",
+};
+
+//CRC. 0x00 = Off, 0x01 = On
+const uint8_t config_crc_values[] = {
+    0x00,
+    0x01,
+};
+const char* const config_crc_names[] = {
+    "Off",
+    "On",
+};
+
+//IQ. 0x00 = Standard, 0x01 = Inverted
+const uint8_t config_iq_values[] = {
+    0x00,
+    0x01,
+};
+const char* const config_iq_names[] = {
+    "Standard",
+    "Inverted",
+};
+
 /**
  * Our 1st sample setting is a team color.  We have 3 options: red, green, and blue.
 */
@@ -208,6 +241,36 @@ static void lora_config_sf_change(VariableItem* item) {
     variable_item_set_current_value_text(item, config_sf_names[index]);
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_sf_index = index;
+}
+
+static const char* config_header_type_config_label = "Header Type";
+
+static void lora_config_header_type_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_header_type_names[index]);
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_header_type_index = index;
+}
+
+static const char* config_crc_config_label = "CRC";
+
+static void lora_config_crc_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_crc_names[index]);
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_crc_index = index;
+}
+
+static const char* config_iq_config_label = "IQ";
+
+static void lora_config_iq_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_iq_names[index]);
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_iq_index = index;
 }
 
 /**
@@ -501,8 +564,35 @@ static LoRaApp* lora_app_alloc() {
     variable_item_set_current_value_index(item, config_sf_index);
     variable_item_set_current_value_text(item, config_sf_names[config_sf_index]);
 
+    item = variable_item_list_add(
+        app->variable_item_list_config,
+        config_header_type_config_label,
+        COUNT_OF(config_header_type_values),
+        lora_config_header_type_change,
+        app);
+    uint8_t config_header_type_index = 0;
+    variable_item_set_current_value_index(item, config_header_type_index);
+    variable_item_set_current_value_text(item, config_header_type_names[config_header_type_index]);
 
+    item = variable_item_list_add(
+        app->variable_item_list_config,
+        config_crc_config_label,
+        COUNT_OF(config_crc_values),
+        lora_config_crc_change,
+        app);
+    uint8_t config_crc_index = 0;
+    variable_item_set_current_value_index(item, config_crc_index);
+    variable_item_set_current_value_text(item, config_crc_names[config_crc_index]);
 
+    item = variable_item_list_add(
+        app->variable_item_list_config,
+        config_iq_config_label,
+        COUNT_OF(config_iq_values),
+        lora_config_iq_change,
+        app);
+    uint8_t config_iq_index = 0;
+    variable_item_set_current_value_index(item, config_iq_index);
+    variable_item_set_current_value_text(item, config_iq_names[config_iq_index]);
 
     variable_item_list_set_enter_callback(
         app->variable_item_list_config, lora_setting_item_clicked, app);
@@ -529,6 +619,9 @@ static LoRaApp* lora_app_alloc() {
     model->config_freq_name = config_freq_name;
     model->config_bw_index = config_bw_index;
     model->config_sf_index = config_sf_index;
+    model->config_header_type_index = config_sf_index;
+    model->config_crc_index = config_sf_index;
+    model->config_iq_index = config_sf_index;
     
     model->x = 0;
     view_dispatcher_add_view(app->view_dispatcher, LoRaViewSniffer, app->view_sniffer);
