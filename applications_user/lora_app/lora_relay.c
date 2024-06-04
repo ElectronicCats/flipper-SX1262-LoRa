@@ -41,6 +41,8 @@ int lora_receive_async(u_int8_t* buff, int buffMaxLen);
 bool configSetFrequency(long frequencyInHz);
 bool configSetBandwidth(int bw);
 bool configSetSpreadingFactor(int sf);
+void setPacketParams(uint16_t packetParam1, uint8_t packetParam2, uint8_t packetParam3, uint8_t packetParam4, uint8_t packetParam5);
+
 
 // Change this to BACKLIGHT_AUTO if you don't want the backlight to be continuously on.
 #define BACKLIGHT_ON 1
@@ -80,6 +82,16 @@ typedef struct {
     uint32_t temp_buffer_size; // Size of temporary buffer
 
     FuriTimer* timer; // Timer for redrawing the screen
+
+    int config_frequency;
+
+    // Order is preamble, header type, packet length, CRC, IQ
+    uint16_t packetPreamble;
+    uint8_t packetHeaderType;
+    uint8_t packetPayloadLength;
+    uint8_t packetCRC;
+    uint8_t packetInvertIQ;
+  
 } LoRaApp;
 
 typedef struct {
@@ -91,6 +103,11 @@ typedef struct {
     uint32_t config_iq_index; // Spread Factor setting index
 
     uint8_t x; // The x coordinate
+
+    bool flag_file;
+    DialogsApp* dialogs;
+    Storage* storage;
+    File* file;
 } LoRaSnifferModel;
 
 /**
@@ -239,6 +256,9 @@ static void lora_config_bw_change(VariableItem* item) {
     variable_item_set_current_value_text(item, config_bw_names[index]);
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_bw_index = index;
+
+    configSetBandwidth(config_bw_values[index]);
+
 }
 
 static const char* config_sf_config_label = "Spread Factor";
@@ -249,6 +269,8 @@ static void lora_config_sf_change(VariableItem* item) {
     variable_item_set_current_value_text(item, config_sf_names[index]);
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_sf_index = index;
+
+    configSetSpreadingFactor(config_sf_values[index]);
 }
 
 static const char* config_header_type_config_label = "Header Type";
@@ -259,6 +281,12 @@ static void lora_config_header_type_change(VariableItem* item) {
     variable_item_set_current_value_text(item, config_header_type_names[index]);
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_header_type_index = index;
+
+    app->packetHeaderType = config_header_type_values[index];
+
+    // Order is preamble, header type, packet length, CRC, IQ
+    setPacketParams(app->packetPreamble, app->packetHeaderType, app->packetPayloadLength, app->packetCRC, app->packetInvertIQ);
+
 }
 
 static const char* config_crc_config_label = "CRC";
@@ -269,6 +297,12 @@ static void lora_config_crc_change(VariableItem* item) {
     variable_item_set_current_value_text(item, config_crc_names[index]);
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_crc_index = index;
+
+    app->packetCRC = config_crc_values[index];
+
+    // Order is preamble, header type, packet length, CRC, IQ
+    setPacketParams(app->packetPreamble, app->packetHeaderType, app->packetPayloadLength, app->packetCRC, app->packetInvertIQ);
+
 }
 
 static const char* config_iq_config_label = "IQ";
@@ -279,6 +313,12 @@ static void lora_config_iq_change(VariableItem* item) {
     variable_item_set_current_value_text(item, config_iq_names[index]);
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_iq_index = index;
+
+    app->packetInvertIQ = config_iq_values[index];
+
+    // Order is preamble, header type, packet length, CRC, IQ
+    setPacketParams(app->packetPreamble, app->packetHeaderType, app->packetPayloadLength, app->packetCRC, app->packetInvertIQ);
+
 }
 
 /**
@@ -301,12 +341,13 @@ static void lora_config_freq_text_updated(void* context) {
                 app->config_freq_item, furi_string_get_cstr(model->config_freq_name));
 
             const char* freq_str = furi_string_get_cstr(model->config_freq_name);
-            float freq_value = strtof(freq_str, NULL);
+            app->config_frequency = (int)(strtof(freq_str, NULL)*1000000);
             FURI_LOG_E(TAG, "abandon hope all ye who enter here");
-            FURI_LOG_E(TAG,"Frequency = %d", (int)(freq_value*1000000));
-            configSetFrequency((int)(freq_value*1000000));
+            FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
+            
         },
         redraw);
+        configSetFrequency(app->config_frequency);
     view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewConfigure);
 }
 
@@ -377,6 +418,9 @@ void bytesToAscii(uint8_t* buffer, uint8_t length) {
 */
 static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
     LoRaSnifferModel* my_model = (LoRaSnifferModel*)model;
+
+    bool flag_file = my_model->flag_file;
+
     canvas_draw_icon(canvas, my_model->x, 20, &I_glyph_1_14x40);
 
         //Receive a packet over radio
@@ -386,11 +430,11 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
         FURI_LOG_E(TAG,"Packet received... ");
         receiveBuff[bytesRead] = '\0';
         
-        // if(flag_file) {
-        //     storage_file_write(model->file, receiveBuff, bytesRead);
-        //     storage_file_write(model->file, "\n", 1);
+        if(flag_file) {
+            storage_file_write(my_model->file, receiveBuff, bytesRead);
+            storage_file_write(my_model->file, "\n", 1);
             
-        // }
+        }
 
         FURI_LOG_E(TAG,"%s",receiveBuff);  
         bytesToAscii(receiveBuff, 16);
@@ -537,6 +581,26 @@ static bool lora_view_sniffer_input_callback(InputEvent* event, void* context) {
             // We choose to send a custom event when user presses OK button.  lora_custom_event_callback will
             // handle our LoRaEventIdOkPressed event.  We could have just put the code from
             // lora_custom_event_callback here, it's a matter of preference.
+
+            bool redraw = true;
+            with_view_model(
+                app->view_sniffer,
+                LoRaSnifferModel * model,
+                {
+                    // Start/Stop recording
+                    model->flag_file = !model->flag_file;
+
+                    if(model->flag_file) {
+                        storage_file_open(model->file, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
+                        FURI_LOG_E(TAG,"OPEN FILE ");
+                    }
+                    else {
+                        storage_file_close(model->file);
+                        FURI_LOG_E(TAG,"CLOSE FILE ");
+                    }
+                },
+                redraw);
+
             view_dispatcher_send_custom_event(app->view_dispatcher, LoRaEventIdOkPressed);
             return true;
         }
@@ -588,7 +652,6 @@ static LoRaApp* lora_app_alloc() {
         app->variable_item_list_config, config_freq_config_label, 1, NULL, NULL);
     variable_item_set_current_value_text(
         app->config_freq_item, furi_string_get_cstr(config_freq_name));
-
 
     item = variable_item_list_add(
         app->variable_item_list_config,
@@ -669,7 +732,12 @@ static LoRaApp* lora_app_alloc() {
     model->config_crc_index = config_sf_index;
     model->config_iq_index = config_sf_index;
     
-    model->x = 0;
+    model->x = 0;    
+    
+    model->dialogs = furi_record_open(RECORD_DIALOGS);
+    model->storage = furi_record_open(RECORD_STORAGE);
+    model->file = storage_file_alloc(model->storage);
+
     view_dispatcher_add_view(app->view_dispatcher, LoRaViewSniffer, app->view_sniffer);
 
     app->widget_about = widget_alloc();
@@ -704,6 +772,11 @@ static void lora_app_free(LoRaApp* app) {
     notification_message(app->notifications, &sequence_display_backlight_enforce_auto);
 #endif
     furi_record_close(RECORD_NOTIFICATION);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    storage_file_free(model->file);
+    furi_record_close(RECORD_STORAGE);
+    furi_record_close(RECORD_DIALOGS);
 
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewTextInput);
     text_input_free(app->text_input);
@@ -756,6 +829,13 @@ int32_t main_lora_app(void* _p) {
     }    
 
     LoRaApp* app = lora_app_alloc();
+
+    app->packetPreamble = 0x000C;
+    app->packetHeaderType = 0x00;
+    app->packetPayloadLength = 0xFF;
+    app->packetCRC = 0x00;
+    app->packetInvertIQ = 0x00;
+
     view_dispatcher_run(app->view_dispatcher);
 
     lora_app_free(app);
