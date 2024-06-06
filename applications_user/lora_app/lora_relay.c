@@ -51,6 +51,7 @@ void setPacketParams(uint16_t packetParam1, uint8_t packetParam2, uint8_t packet
 typedef enum {
     LoRaSubmenuIndexConfigure,
     LoRaSubmenuIndexSniffer,
+    LoRaSubmenuIndexTransmitter,
     LoRaSubmenuIndexAbout,
 } LoRaSubmenuIndex;
 
@@ -59,7 +60,8 @@ typedef enum {
     LoRaViewSubmenu, // The menu when the app starts
     LoRaViewTextInput, // Input for configuring text settings
     LoRaViewConfigure, // The configuration screen
-    LoRaViewSniffer, // The main screen
+    LoRaViewSniffer, // Sniffer
+    LoraViewTransmitter, // Transmitter
     LoRaViewAbout, // The about screen with directions, link to social channel, etc.
 } LoRaView;
 
@@ -75,6 +77,7 @@ typedef struct {
     TextInput* text_input; // The text input screen
     VariableItemList* variable_item_list_config; // The configuration screen
     View* view_sniffer; // The main screen
+    View* view_transmitter; // The other main screen
     Widget* widget_about; // The about screen
 
     VariableItem* config_freq_item; // The name setting item (so we can update the text)
@@ -109,6 +112,10 @@ typedef struct {
     Storage* storage;
     File* file;
 } LoRaSnifferModel;
+
+typedef struct {
+    uint8_t x; // The x coordinate
+} LoRaTransmitterModel;
 
 /**
  * @brief      Callback for exiting the application.
@@ -161,6 +168,9 @@ static void lora_submenu_callback(void* context, uint32_t index) {
     case LoRaSubmenuIndexSniffer:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewSniffer);
         break;
+    case LoRaSubmenuIndexTransmitter:
+        view_dispatcher_switch_to_view(app->view_dispatcher, LoraViewTransmitter);
+        break;    
     case LoRaSubmenuIndexAbout:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewAbout);
         break;
@@ -468,11 +478,79 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
 }
 
 /**
+ * @brief      Callback for drawing the transmitter screen.
+ * @details    This function is called when the screen needs to be redrawn, like when the model gets updated.
+ * @param      canvas  The canvas to draw on.
+ * @param      model   The model - MyModel object.
+*/
+static void lora_view_transmitter_draw_callback(Canvas* canvas, void* model) {
+    LoRaTransmitterModel* my_model = (LoRaTransmitterModel*)model;
+
+    //bool flag_file = my_model->flag_file;
+
+    canvas_draw_icon(canvas, my_model->x, 20, &I_glyph_1_14x40);
+
+    // //Receive a packet over radio
+    // int bytesRead = lora_receive_async(receiveBuff, sizeof(receiveBuff));
+
+    // if (bytesRead > -1) {
+    //     FURI_LOG_E(TAG,"Packet received... ");
+    //     receiveBuff[bytesRead] = '\0';
+        
+    //     if(flag_file) {
+    //         storage_file_write(my_model->file, receiveBuff, bytesRead);
+    //         storage_file_write(my_model->file, "\n", 1);
+            
+    //     }
+
+    //     FURI_LOG_E(TAG,"%s",receiveBuff);  
+    //     bytesToAscii(receiveBuff, 16);
+    //     asciiBuff[17] = '.';
+    //     asciiBuff[18] = '.';
+    //     asciiBuff[19] = '.';
+    //     asciiBuff[20] = '\0';    
+    // }
+
+    canvas_draw_str(canvas, 1, 10, "LEFT/RIGHT to change x");
+    //canvas_draw_str(canvas, 1, 10, (const char*)receiveBuff);
+
+    FuriString* xstr = furi_string_alloc();
+
+    // furi_string_printf(xstr, "RSSI: %d  ", getRSSI());
+    // canvas_draw_str(canvas, 60, 10, furi_string_get_cstr(xstr));
+
+    furi_string_printf(xstr, "x: %u  OK=play tone", my_model->x);
+    canvas_draw_str(canvas, 44, 24, furi_string_get_cstr(xstr));
+
+    furi_string_printf(xstr, "random: %u", (uint8_t)(furi_hal_random_get() % 256));
+    canvas_draw_str(canvas, 44, 36, furi_string_get_cstr(xstr));
+    // furi_string_printf(
+    //     xstr,
+    //     "Bandwidth: %s (%u)",
+    //     config_bw_names[my_model->config_bw_index],
+    //     config_bw_values[my_model->config_bw_index]);
+    // canvas_draw_str(canvas, 44, 48, furi_string_get_cstr(xstr));
+    // furi_string_printf(xstr, "name: %s", furi_string_get_cstr(my_model->config_freq_name));
+    // canvas_draw_str(canvas, 44, 60, furi_string_get_cstr(xstr));
+    furi_string_free(xstr);
+}
+
+/**
  * @brief      Callback for timer elapsed.
  * @details    This function is called when the timer is elapsed.  We use this to queue a redraw event.
  * @param      context  The context - LoRaApp object.
 */
 static void lora_view_sniffer_timer_callback(void* context) {
+    LoRaApp* app = (LoRaApp*)context;
+    view_dispatcher_send_custom_event(app->view_dispatcher, LoRaEventIdRedrawScreen);
+}
+
+/**
+ * @brief      Callback for timer elapsed.
+ * @details    This function is called when the timer is elapsed.  We use this to queue a redraw event.
+ * @param      context  The context - LoRaApp object.
+*/
+static void lora_view_transmitter_timer_callback(void* context) {
     LoRaApp* app = (LoRaApp*)context;
     view_dispatcher_send_custom_event(app->view_dispatcher, LoRaEventIdRedrawScreen);
 }
@@ -493,11 +571,38 @@ static void lora_view_sniffer_enter_callback(void* context) {
 }
 
 /**
+ * @brief      Callback when the user starts the transmitter screen.
+ * @details    This function is called when the user enters the transmitter screen.  We start a timer to
+ *           redraw the screen periodically (so the random number is refreshed).
+ * @param      context  The context - LoRaApp object.
+*/
+static void lora_view_transmitter_enter_callback(void* context) {
+    uint32_t period = furi_ms_to_ticks(200);
+    LoRaApp* app = (LoRaApp*)context;
+    furi_assert(app->timer == NULL);
+    app->timer =
+        furi_timer_alloc(lora_view_transmitter_timer_callback, FuriTimerTypePeriodic, context);
+    furi_timer_start(app->timer, period);
+}
+
+/**
  * @brief      Callback when the user exits the sniffer screen.
  * @details    This function is called when the user exits the sniffer screen.  We stop the timer.
  * @param      context  The context - LoRaApp object.
 */
 static void lora_view_sniffer_exit_callback(void* context) {
+    LoRaApp* app = (LoRaApp*)context;
+    furi_timer_stop(app->timer);
+    furi_timer_free(app->timer);
+    app->timer = NULL;
+}
+
+/**
+ * @brief      Callback when the user exits the transmitter screen.
+ * @details    This function is called when the user exits the transmitter screen.  We stop the timer.
+ * @param      context  The context - LoRaApp object.
+*/
+static void lora_view_transmitter_exit_callback(void* context) {
     LoRaApp* app = (LoRaApp*)context;
     furi_timer_stop(app->timer);
     furi_timer_free(app->timer);
@@ -529,6 +634,44 @@ static bool lora_view_sniffer_custom_event_callback(uint32_t event, void* contex
             with_view_model(
                 app->view_sniffer,
                 LoRaSnifferModel * model,
+                { frequency = model->x * 100 + 100; },
+                redraw);
+            furi_hal_speaker_start(frequency, 1.0);
+            furi_delay_ms(100);
+            furi_hal_speaker_stop();
+            furi_hal_speaker_release();
+        }
+        return true;
+    default:
+        return false;
+    }
+}
+
+/**
+ * @brief      Callback for custom events.
+ * @details    This function is called when a custom event is sent to the view dispatcher.
+ * @param      event    The event id - LoRaEventId value.
+ * @param      context  The context - LoRaApp object.
+*/
+static bool lora_view_transmitter_custom_event_callback(uint32_t event, void* context) {
+    LoRaApp* app = (LoRaApp*)context;
+    switch(event) {
+    case LoRaEventIdRedrawScreen:
+        // Redraw screen by passing true to last parameter of with_view_model.
+        {
+            bool redraw = true;
+            with_view_model(
+                app->view_transmitter, LoRaTransmitterModel * _model, { UNUSED(_model); }, redraw);
+            return true;
+        }
+    case LoRaEventIdOkPressed:
+        // Process the OK button.  We play a tone based on the x coordinate.
+        if(furi_hal_speaker_acquire(500)) {
+            float frequency;
+            bool redraw = false;
+            with_view_model(
+                app->view_transmitter,
+                LoRaTransmitterModel * model,
                 { frequency = model->x * 100 + 100; },
                 redraw);
             furi_hal_speaker_start(frequency, 1.0);
@@ -610,6 +753,73 @@ static bool lora_view_sniffer_input_callback(InputEvent* event, void* context) {
 }
 
 /**
+ * @brief      Callback for sniffer screen input.
+ * @details    This function is called when the user presses a button while on the transmitter screen.
+ * @param      event    The event - InputEvent object.
+ * @param      context  The context - LoRaApp object.
+ * @return     true if the event was handled, false otherwise.
+*/
+static bool lora_view_transmitter_input_callback(InputEvent* event, void* context) {
+    LoRaApp* app = (LoRaApp*)context;
+    if(event->type == InputTypeShort) {
+        if(event->key == InputKeyLeft) {
+            // Left button clicked, reduce x coordinate.
+            bool redraw = true;
+            with_view_model(
+                app->view_transmitter,
+                LoRaTransmitterModel * model,
+                {
+                    if(model->x > 0) {
+                        model->x--;
+                    }
+                },
+                redraw);
+        } else if(event->key == InputKeyRight) {
+            // Right button clicked, increase x coordinate.
+            bool redraw = true;
+            with_view_model(
+                app->view_transmitter,
+                LoRaTransmitterModel * model,
+                {
+                    // Should we have some maximum value?
+                    model->x++;
+                },
+                redraw);
+        }
+    } else if(event->type == InputTypePress) {
+        if(event->key == InputKeyOk) {
+            // We choose to send a custom event when user presses OK button.  lora_custom_event_callback will
+            // handle our LoRaEventIdOkPressed event.  We could have just put the code from
+            // lora_custom_event_callback here, it's a matter of preference.
+
+            bool redraw = true;
+            with_view_model(
+                app->view_transmitter,
+                LoRaTransmitterModel * model,
+                {
+                    // Start/Stop recording
+                    model->x = 0;
+
+                    // if(model->flag_file) {
+                    //     storage_file_open(model->file, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
+                    //     FURI_LOG_E(TAG,"OPEN FILE ");
+                    // }
+                    // else {
+                    //     storage_file_close(model->file);
+                    //     FURI_LOG_E(TAG,"CLOSE FILE ");
+                    // }
+                },
+                redraw);
+
+            view_dispatcher_send_custom_event(app->view_dispatcher, LoRaEventIdOkPressed);
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
  * @brief      Allocate the LoRa application.
  * @details    This function allocates the LoRa application resources.
  * @return     LoRaApp object.
@@ -628,7 +838,9 @@ static LoRaApp* lora_app_alloc() {
     submenu_add_item(
         app->submenu, "Config", LoRaSubmenuIndexConfigure, lora_submenu_callback, app);
     submenu_add_item(
-        app->submenu, "Play", LoRaSubmenuIndexSniffer, lora_submenu_callback, app);
+        app->submenu, "Sniffer", LoRaSubmenuIndexSniffer, lora_submenu_callback, app);
+    submenu_add_item(
+        app->submenu, "Transmitter", LoRaSubmenuIndexTransmitter, lora_submenu_callback, app);    
     submenu_add_item(
         app->submenu, "About", LoRaSubmenuIndexAbout, lora_submenu_callback, app);
     view_set_previous_callback(submenu_get_view(app->submenu), lora_navigation_exit_callback);
@@ -740,6 +952,21 @@ static LoRaApp* lora_app_alloc() {
 
     view_dispatcher_add_view(app->view_dispatcher, LoRaViewSniffer, app->view_sniffer);
 
+    app->view_transmitter = view_alloc();
+    view_set_draw_callback(app->view_transmitter, lora_view_transmitter_draw_callback);
+    view_set_input_callback(app->view_transmitter, lora_view_transmitter_input_callback);
+    view_set_previous_callback(app->view_transmitter, lora_navigation_submenu_callback);
+    view_set_enter_callback(app->view_transmitter, lora_view_transmitter_enter_callback);
+    view_set_exit_callback(app->view_transmitter, lora_view_transmitter_exit_callback);
+    view_set_context(app->view_transmitter, app);
+    view_set_custom_callback(app->view_transmitter, lora_view_transmitter_custom_event_callback);
+    view_allocate_model(app->view_transmitter, ViewModelTypeLockFree, sizeof(LoRaTransmitterModel));
+    LoRaTransmitterModel* model_t = view_get_model(app->view_transmitter);
+
+    model_t->x = 0;    
+
+    view_dispatcher_add_view(app->view_dispatcher, LoraViewTransmitter, app->view_transmitter);
+
     app->widget_about = widget_alloc();
     widget_add_text_scroll_element(
         app->widget_about,
@@ -785,6 +1012,8 @@ static void lora_app_free(LoRaApp* app) {
     widget_free(app->widget_about);
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewSniffer);
     view_free(app->view_sniffer);
+    view_dispatcher_remove_view(app->view_dispatcher, LoraViewTransmitter);
+    view_free(app->view_transmitter);
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewConfigure);
     variable_item_list_free(app->variable_item_list_config);
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewSubmenu);
