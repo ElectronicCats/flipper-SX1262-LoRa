@@ -357,8 +357,11 @@ static void lora_config_freq_text_updated(void* context) {
             
         },
         redraw);
-        configSetFrequency(app->config_frequency);
+
+
     view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewConfigure);
+    configSetFrequency(app->config_frequency);
+    FURI_LOG_E(TAG,"PASOOO");
 }
 
 
