@@ -1,6 +1,7 @@
 #include <furi.h>
 #include <furi_hal.h>
 #include <gui/gui.h>
+#include <locale/locale.h>
 #include <gui/view.h>
 #include <gui/view_dispatcher.h>
 #include <gui/modules/submenu.h>
@@ -19,6 +20,12 @@
 #define PATHAPPEXT EXT_PATH(PATHAPP)
 #define PATHLORA PATHAPPEXT "/data.log"
 #define LORA_LOG_FILE_EXTENSION ".log"
+
+#define TIME_LEN 12
+#define DATE_LEN 14
+
+#define CLOCK_TIME_FORMAT "%.2d:%.2d:%.2d"
+#define CLOCK_ISO_DATE_FORMAT "%.4d-%.2d-%.2d"
 
 static FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
 
@@ -444,7 +451,24 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
         receiveBuff[bytesRead] = '\0';
         
         if(flag_file) {
-            storage_file_write(my_model->file, receiveBuff, bytesRead);
+
+            FuriHalRtcDateTime curr_dt;
+            furi_hal_rtc_get_datetime(&curr_dt);
+
+            char time_string[TIME_LEN];
+            char date_string[DATE_LEN];
+
+            snprintf(time_string, TIME_LEN, CLOCK_TIME_FORMAT, curr_dt.hour, curr_dt.minute, curr_dt.second);
+            snprintf(date_string, DATE_LEN, CLOCK_ISO_DATE_FORMAT, curr_dt.year, curr_dt.month, curr_dt.day);
+
+            char final_string[400];
+            const char* freq_str = furi_string_get_cstr(my_model->config_freq_name);
+            snprintf(final_string, 400, "{\"date\":\"%s\", \"time\":\"%s\", \"frequency\":\"%s\", \"bw\":\"%s\", \"sf\":\"%s\", \"RSSI\":\"%d\", \"payload\":\"%s\"}", date_string, time_string, freq_str, config_bw_names[my_model->config_bw_index], config_sf_names[my_model->config_sf_index],getRSSI(),receiveBuff);
+
+            FURI_LOG_E(TAG, "TS: %s", final_string);
+            FURI_LOG_E(TAG, "Length: %d", strlen(final_string) + 1);  
+
+            storage_file_write(my_model->file, final_string, strlen(final_string));
             storage_file_write(my_model->file, "\n", 1);
             
         }
