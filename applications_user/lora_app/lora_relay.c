@@ -68,7 +68,8 @@ typedef enum {
 // Each view is a screen we show the user.
 typedef enum {
     LoRaViewSubmenu, // The menu when the app starts
-    LoRaViewFrequencyInput, // Input for configuring text settings
+    LoRaViewFrequencyInput, // Input for configuring frequency settings
+    //LoRaViewPayloadLenInput, // Input for configuring payload length settings
     LoRaViewByteInput, // Input for send data (bytes)
     LoRaViewConfigure, // The configuration screen
     LoRaViewSniffer, // Sniffer
@@ -87,6 +88,7 @@ typedef struct {
     Submenu* submenu; // The application menu
     TextInput* frequency_input; // The text input screen
     ByteInput* byte_input; // The byte input screen
+    //ByteInput* payload_len_input; // The payload length input screen
     VariableItemList* variable_item_list_config; // The configuration screen
     View* view_sniffer; // The main screen
     View* view_transmitter; // The other main screen
@@ -118,6 +120,7 @@ typedef struct {
     FuriString* config_freq_name; // The name setting    
     uint32_t config_bw_index; // Bandwidth setting index
     uint32_t config_sf_index; // Spread Factor setting index
+    //uint32_t config_payload_len_index; //Payload length index
     uint32_t config_header_type_index; // Spread Factor setting index
     uint32_t config_crc_index; // Spread Factor setting index
     uint32_t config_iq_index; // Spread Factor setting index
@@ -275,9 +278,6 @@ const char* const config_iq_names[] = {
     "Inverted",
 };
 
-/**
- * Our 1st sample setting is a team color.  We have 3 options: red, green, and blue.
-*/
 static const char* config_bw_config_label = "Bandwidth";
 
 static void lora_config_bw_change(VariableItem* item) {
@@ -353,7 +353,7 @@ static void lora_config_iq_change(VariableItem* item) {
 
 /**
  * Our 2nd sample setting is a text field.  When the user clicks OK on the configuration 
- * setting we use a text input screen to allow the user to enter a name.  This function is
+ * setting we use a text input screen to allow the user to enter a frequency.  This function is
  * called when the user clicks OK on the text input screen.
 */
 static const char* config_freq_config_label = "Frequency";
@@ -372,7 +372,6 @@ static void lora_config_freq_text_updated(void* context) {
 
             const char* freq_str = furi_string_get_cstr(model->config_freq_name);
             app->config_frequency = (int)(strtof(freq_str, NULL)*1000000);
-            FURI_LOG_E(TAG, "abandon hope all ye who enter here");
             FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
             
         },
@@ -381,20 +380,11 @@ static void lora_config_freq_text_updated(void* context) {
 
     view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewConfigure);
     configSetFrequency(app->config_frequency);
-    FURI_LOG_E(TAG,"PASOOO");
 }
+
 
 static void SetValue(void* context) {
     LoRaApp* app = (LoRaApp*)context;
-
-    //for(uint16_t i = 0; i < app->byte_buffer_size; i++) {
-                                
-    //if(app->byte_buffer[i] == '\0') {
-
-    //         furi_delay_ms(10);
-    //         i++;
-    //     }
-    // }
 
     FURI_LOG_E(TAG, "Byte buffer: %s", (char *)app->byte_buffer);
     view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewSubmenu);
@@ -447,6 +437,41 @@ static void lora_setting_item_clicked(void* context, uint32_t index) {
         // Show text input dialog.
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewFrequencyInput);
     }
+
+    // if(index == 1) {
+    //     // Header to display on the text input screen.
+    //     text_input_set_header_text(app->frequency_input, config_freq_entry_text);
+
+    //     // Copy the current name into the temporary buffer.
+    //     bool redraw = false;
+    //     with_view_model(
+    //         app->view_sniffer,
+    //         LoRaSnifferModel * model,
+    //         {
+    //             strncpy(
+    //                 app->temp_buffer,
+    //                 furi_string_get_cstr(model->config_freq_name),
+    //                 app->temp_buffer_size);
+    //         },
+    //         redraw);
+
+    //     // Configure the text input.  When user enters text and clicks OK, lora_setting_text_updated be called.
+    //     bool clear_previous_text = false;
+    //     text_input_set_result_callback(
+    //         app->frequency_input,
+    //         lora_config_freq_text_updated,
+    //         app,
+    //         app->temp_buffer,
+    //         app->temp_buffer_size,
+    //         clear_previous_text);
+
+    //     // Pressing the BACK button will reload the configure screen.
+    //     view_set_previous_callback(
+    //         text_input_get_view(app->frequency_input), lora_navigation_configure_callback);
+
+    //     // Show text input dialog.
+    //     view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewFrequencyInput);
+    // }
 }
 
 void bytesToAscii(uint8_t* buffer, uint8_t length) {
@@ -875,6 +900,18 @@ static bool lora_view_transmitter_input_callback(InputEvent* event, void* contex
     return false;
 }
 
+static void lora_app_config_set_payload_length(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    FuriString* temp;
+    temp = furi_string_alloc();
+    furi_string_cat_printf(temp, "%d", index);
+    variable_item_set_current_value_text(item, furi_string_get_cstr(temp));
+    furi_string_free(temp);
+    app->packetPayloadLength = index;
+}
+
+
 /**
  * @brief      Allocate the LoRa application.
  * @details    This function allocates the LoRa application resources.
@@ -924,6 +961,16 @@ static LoRaApp* lora_app_alloc() {
     byte_input_set_result_callback(
         app->byte_input, SetValue, NULL, app, app->byte_buffer, app->byte_buffer_size); 
 
+    // view_dispatcher_add_view(
+    //     app->view_dispatcher, LoRaViewPayloadLenInput, byte_input_get_view(app->payload_len_input));
+
+    // byte_input_set_header_text(app->payload_len_input, "Set payload lenght");
+    // byte_input_set_result_callback(
+    //     app->payload_len_input, lora_config_payload_len_byte_updated, NULL, app, app->byte_buffer, 2);    
+
+
+    app->packetPayloadLength = 16;
+
     app->variable_item_list_config = variable_item_list_alloc();
     variable_item_list_reset(app->variable_item_list_config);
 
@@ -935,6 +982,7 @@ static LoRaApp* lora_app_alloc() {
     variable_item_set_current_value_text(
         app->config_freq_item, furi_string_get_cstr(config_freq_name));
 
+    // bw
     item = variable_item_list_add(
         app->variable_item_list_config,
         config_bw_config_label,
@@ -945,6 +993,7 @@ static LoRaApp* lora_app_alloc() {
     variable_item_set_current_value_index(item, config_bw_index);
     variable_item_set_current_value_text(item, config_bw_names[config_bw_index]);
 
+    // sf
     item = variable_item_list_add(
         app->variable_item_list_config,
         config_sf_config_label,
@@ -955,6 +1004,13 @@ static LoRaApp* lora_app_alloc() {
     variable_item_set_current_value_index(item, config_sf_index);
     variable_item_set_current_value_text(item, config_sf_names[config_sf_index]);
 
+    // Payload length
+    item = variable_item_list_add(
+        app->variable_item_list_config, "Payload length", 64, lora_app_config_set_payload_length, app);
+    variable_item_set_current_value_index(item, 16);
+    variable_item_set_current_value_text(item, "16");    
+
+    // header type
     item = variable_item_list_add(
         app->variable_item_list_config,
         config_header_type_config_label,
