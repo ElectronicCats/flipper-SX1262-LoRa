@@ -909,6 +909,17 @@ static void lora_app_config_set_payload_length(VariableItem* item) {
     variable_item_set_current_value_text(item, furi_string_get_cstr(temp));
     furi_string_free(temp);
     app->packetPayloadLength = index;
+
+    app->byte_buffer_size = index;
+    free(app->byte_buffer);
+    app->byte_buffer = (uint8_t*)malloc(app->byte_buffer_size);
+
+    byte_input_set_result_callback(
+        app->byte_input, SetValue, NULL, app, app->byte_buffer, app->byte_buffer_size); 
+
+    // Order is preamble, header type, packet length, CRC, IQ
+    setPacketParams(app->packetPreamble, app->packetHeaderType, app->packetPayloadLength, app->packetCRC, app->packetInvertIQ);
+
 }
 
 
@@ -949,7 +960,7 @@ static LoRaApp* lora_app_alloc() {
     app->temp_buffer_size = 32;
     app->temp_buffer = (char*)malloc(app->temp_buffer_size);
 
-    app->byte_buffer_size = 8;
+    app->byte_buffer_size = 16;
     app->byte_buffer = (uint8_t*)malloc(app->byte_buffer_size);
 
     app->byte_input = byte_input_alloc();
