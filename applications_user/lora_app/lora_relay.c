@@ -6,6 +6,7 @@
 #include <gui/view_dispatcher.h>
 #include <gui/modules/submenu.h>
 #include <gui/modules/text_input.h>
+#include <gui/modules/byte_input.h>
 #include <gui/modules/widget.h>
 #include <gui/modules/variable_item_list.h>
 #include <notification/notification.h>
@@ -50,6 +51,7 @@ bool configSetBandwidth(int bw);
 bool configSetSpreadingFactor(int sf);
 void setPacketParams(uint16_t packetParam1, uint8_t packetParam2, uint8_t packetParam3, uint8_t packetParam4, uint8_t packetParam5);
 
+void transmit(uint8_t *data, int dataLen);
 
 // Change this to BACKLIGHT_AUTO if you don't want the backlight to be continuously on.
 #define BACKLIGHT_ON 1
@@ -59,13 +61,15 @@ typedef enum {
     LoRaSubmenuIndexConfigure,
     LoRaSubmenuIndexSniffer,
     LoRaSubmenuIndexTransmitter,
+    LoRaSubmenuIndexManualTX,
     LoRaSubmenuIndexAbout,
 } LoRaSubmenuIndex;
 
 // Each view is a screen we show the user.
 typedef enum {
     LoRaViewSubmenu, // The menu when the app starts
-    LoRaViewTextInput, // Input for configuring text settings
+    LoRaViewFrequencyInput, // Input for configuring text settings
+    LoRaViewByteInput, // Input for send data (bytes)
     LoRaViewConfigure, // The configuration screen
     LoRaViewSniffer, // Sniffer
     LoraViewTransmitter, // Transmitter
@@ -81,7 +85,8 @@ typedef struct {
     ViewDispatcher* view_dispatcher; // Switches between our views
     NotificationApp* notifications; // Used for controlling the backlight
     Submenu* submenu; // The application menu
-    TextInput* text_input; // The text input screen
+    TextInput* frequency_input; // The text input screen
+    ByteInput* byte_input; // The byte input screen
     VariableItemList* variable_item_list_config; // The configuration screen
     View* view_sniffer; // The main screen
     View* view_transmitter; // The other main screen
@@ -90,6 +95,11 @@ typedef struct {
     VariableItem* config_freq_item; // The name setting item (so we can update the text)
     char* temp_buffer; // Temporary buffer for text input
     uint32_t temp_buffer_size; // Size of temporary buffer
+
+    uint8_t* byte_buffer; // Temporary buffer for text input
+    uint32_t byte_buffer_size; // Size of temporary buffer
+
+    //uint8_t byte_input_store[64];
 
     FuriTimer* timer; // Timer for redrawing the screen
 
@@ -177,7 +187,10 @@ static void lora_submenu_callback(void* context, uint32_t index) {
         break;
     case LoRaSubmenuIndexTransmitter:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoraViewTransmitter);
-        break;    
+        break; 
+    case LoRaSubmenuIndexManualTX:
+        view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewByteInput);
+        break;       
     case LoRaSubmenuIndexAbout:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewAbout);
         break;
@@ -371,6 +384,22 @@ static void lora_config_freq_text_updated(void* context) {
     FURI_LOG_E(TAG,"PASOOO");
 }
 
+static void SetValue(void* context) {
+    LoRaApp* app = (LoRaApp*)context;
+
+    //for(uint16_t i = 0; i < app->byte_buffer_size; i++) {
+                                
+    //if(app->byte_buffer[i] == '\0') {
+
+    //         furi_delay_ms(10);
+    //         i++;
+    //     }
+    // }
+
+    FURI_LOG_E(TAG, "Byte buffer: %s", (char *)app->byte_buffer);
+    view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewSubmenu);
+    transmit(app->byte_buffer, app->byte_buffer_size);
+}
 
 /**
  * @brief      Callback when item in configuration screen is clicked.
@@ -386,7 +415,7 @@ static void lora_setting_item_clicked(void* context, uint32_t index) {
     // Our configuration UI has the 2nd item as a text field.
     if(index == 1) {
         // Header to display on the text input screen.
-        text_input_set_header_text(app->text_input, config_freq_entry_text);
+        text_input_set_header_text(app->frequency_input, config_freq_entry_text);
 
         // Copy the current name into the temporary buffer.
         bool redraw = false;
@@ -404,7 +433,7 @@ static void lora_setting_item_clicked(void* context, uint32_t index) {
         // Configure the text input.  When user enters text and clicks OK, lora_setting_text_updated be called.
         bool clear_previous_text = false;
         text_input_set_result_callback(
-            app->text_input,
+            app->frequency_input,
             lora_config_freq_text_updated,
             app,
             app->temp_buffer,
@@ -413,10 +442,10 @@ static void lora_setting_item_clicked(void* context, uint32_t index) {
 
         // Pressing the BACK button will reload the configure screen.
         view_set_previous_callback(
-            text_input_get_view(app->text_input), lora_navigation_configure_callback);
+            text_input_get_view(app->frequency_input), lora_navigation_configure_callback);
 
         // Show text input dialog.
-        view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewTextInput);
+        view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewFrequencyInput);
     }
 }
 
@@ -867,7 +896,9 @@ static LoRaApp* lora_app_alloc() {
     submenu_add_item(
         app->submenu, "Sniffer", LoRaSubmenuIndexSniffer, lora_submenu_callback, app);
     submenu_add_item(
-        app->submenu, "Transmitter", LoRaSubmenuIndexTransmitter, lora_submenu_callback, app);    
+        app->submenu, "Transmitter", LoRaSubmenuIndexTransmitter, lora_submenu_callback, app);
+    submenu_add_item(
+        app->submenu, "Send LoRa byte", LoRaSubmenuIndexManualTX, lora_submenu_callback, app);   
     submenu_add_item(
         app->submenu, "About", LoRaSubmenuIndexAbout, lora_submenu_callback, app);
     view_set_previous_callback(submenu_get_view(app->submenu), lora_navigation_exit_callback);
@@ -875,11 +906,23 @@ static LoRaApp* lora_app_alloc() {
         app->view_dispatcher, LoRaViewSubmenu, submenu_get_view(app->submenu));
     view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewSubmenu);
 
-    app->text_input = text_input_alloc();
+    app->frequency_input = text_input_alloc();
     view_dispatcher_add_view(
-        app->view_dispatcher, LoRaViewTextInput, text_input_get_view(app->text_input));
+        app->view_dispatcher, LoRaViewFrequencyInput, text_input_get_view(app->frequency_input));
     app->temp_buffer_size = 32;
     app->temp_buffer = (char*)malloc(app->temp_buffer_size);
+
+    app->byte_buffer_size = 8;
+    app->byte_buffer = (uint8_t*)malloc(app->byte_buffer_size);
+
+    app->byte_input = byte_input_alloc();
+
+    view_dispatcher_add_view(
+        app->view_dispatcher, LoRaViewByteInput, byte_input_get_view(app->byte_input));
+
+    byte_input_set_header_text(app->byte_input, "Set byte to LoRa TX");
+    byte_input_set_result_callback(
+        app->byte_input, SetValue, NULL, app, app->byte_buffer, app->byte_buffer_size); 
 
     app->variable_item_list_config = variable_item_list_alloc();
     variable_item_list_reset(app->variable_item_list_config);
@@ -1032,9 +1075,15 @@ static void lora_app_free(LoRaApp* app) {
     furi_record_close(RECORD_STORAGE);
     furi_record_close(RECORD_DIALOGS);
 
-    view_dispatcher_remove_view(app->view_dispatcher, LoRaViewTextInput);
-    text_input_free(app->text_input);
+    view_dispatcher_remove_view(app->view_dispatcher, LoRaViewFrequencyInput);
+    text_input_free(app->frequency_input);
+
+    view_dispatcher_remove_view(app->view_dispatcher, LoRaViewByteInput);
+    byte_input_free(app->byte_input);
+
     free(app->temp_buffer);
+    free(app->byte_buffer);
+
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewAbout);
     widget_free(app->widget_about);
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewSniffer);

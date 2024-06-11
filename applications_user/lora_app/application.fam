@@ -1,6 +1,6 @@
 App(
     appid="lora_app",
-    name="[WIP] LoRa Sample App",
+    name="LoRa Relay",
     apptype=FlipperAppType.EXTERNAL,
     entry_point="main_lora_app",
     stack_size=4 * 1024,
