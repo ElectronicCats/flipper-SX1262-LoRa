@@ -101,8 +101,6 @@ typedef struct {
     uint8_t* byte_buffer; // Temporary buffer for text input
     uint32_t byte_buffer_size; // Size of temporary buffer
 
-    //uint8_t byte_input_store[64];
-
     FuriTimer* timer; // Timer for redrawing the screen
 
     int config_frequency;
@@ -120,7 +118,6 @@ typedef struct {
     FuriString* config_freq_name; // The name setting    
     uint32_t config_bw_index; // Bandwidth setting index
     uint32_t config_sf_index; // Spread Factor setting index
-    //uint32_t config_payload_len_index; //Payload length index
     uint32_t config_header_type_index; // Spread Factor setting index
     uint32_t config_crc_index; // Spread Factor setting index
     uint32_t config_iq_index; // Spread Factor setting index
@@ -128,12 +125,19 @@ typedef struct {
     uint8_t x; // The x coordinate
 
     bool flag_file;
-    DialogsApp* dialogs;
-    Storage* storage;
-    File* file;
+    DialogsApp* dialogs_rx;
+    Storage* storage_rx;
+    File* file_rx;
 } LoRaSnifferModel;
 
 typedef struct {
+    uint32_t test;
+    bool flag_tx_file;
+    bool flag_signal;
+    FuriString* text;
+    DialogsApp* dialogs_tx;
+    Storage* storage_tx;
+    File* file_tx;
     uint8_t x; // The x coordinate
 } LoRaTransmitterModel;
 
@@ -437,41 +441,6 @@ static void lora_setting_item_clicked(void* context, uint32_t index) {
         // Show text input dialog.
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewFrequencyInput);
     }
-
-    // if(index == 1) {
-    //     // Header to display on the text input screen.
-    //     text_input_set_header_text(app->frequency_input, config_freq_entry_text);
-
-    //     // Copy the current name into the temporary buffer.
-    //     bool redraw = false;
-    //     with_view_model(
-    //         app->view_sniffer,
-    //         LoRaSnifferModel * model,
-    //         {
-    //             strncpy(
-    //                 app->temp_buffer,
-    //                 furi_string_get_cstr(model->config_freq_name),
-    //                 app->temp_buffer_size);
-    //         },
-    //         redraw);
-
-    //     // Configure the text input.  When user enters text and clicks OK, lora_setting_text_updated be called.
-    //     bool clear_previous_text = false;
-    //     text_input_set_result_callback(
-    //         app->frequency_input,
-    //         lora_config_freq_text_updated,
-    //         app,
-    //         app->temp_buffer,
-    //         app->temp_buffer_size,
-    //         clear_previous_text);
-
-    //     // Pressing the BACK button will reload the configure screen.
-    //     view_set_previous_callback(
-    //         text_input_get_view(app->frequency_input), lora_navigation_configure_callback);
-
-    //     // Show text input dialog.
-    //     view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewFrequencyInput);
-    // }
 }
 
 void bytesToAscii(uint8_t* buffer, uint8_t length) {
@@ -522,8 +491,8 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
             FURI_LOG_E(TAG, "TS: %s", final_string);
             FURI_LOG_E(TAG, "Length: %d", strlen(final_string) + 1);  
 
-            storage_file_write(my_model->file, final_string, strlen(final_string));
-            storage_file_write(my_model->file, "\n", 1);
+            storage_file_write(my_model->file_rx, final_string, strlen(final_string));
+            storage_file_write(my_model->file_rx, "\n", 1);
             
         }
 
@@ -567,52 +536,17 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
 static void lora_view_transmitter_draw_callback(Canvas* canvas, void* model) {
     LoRaTransmitterModel* my_model = (LoRaTransmitterModel*)model;
 
-    //bool flag_file = my_model->flag_file;
-
     canvas_draw_icon(canvas, my_model->x, 20, &I_glyph_1_14x40);
 
-    // //Receive a packet over radio
-    // int bytesRead = lora_receive_async(receiveBuff, sizeof(receiveBuff));
-
-    // if (bytesRead > -1) {
-    //     FURI_LOG_E(TAG,"Packet received... ");
-    //     receiveBuff[bytesRead] = '\0';
-        
-    //     if(flag_file) {
-    //         storage_file_write(my_model->file, receiveBuff, bytesRead);
-    //         storage_file_write(my_model->file, "\n", 1);
-            
-    //     }
-
-    //     FURI_LOG_E(TAG,"%s",receiveBuff);  
-    //     bytesToAscii(receiveBuff, 16);
-    //     asciiBuff[17] = '.';
-    //     asciiBuff[18] = '.';
-    //     asciiBuff[19] = '.';
-    //     asciiBuff[20] = '\0';    
-    // }
-
     canvas_draw_str(canvas, 1, 10, "LEFT/RIGHT to change x");
-    //canvas_draw_str(canvas, 1, 10, (const char*)receiveBuff);
 
     FuriString* xstr = furi_string_alloc();
-
-    // furi_string_printf(xstr, "RSSI: %d  ", getRSSI());
-    // canvas_draw_str(canvas, 60, 10, furi_string_get_cstr(xstr));
-
     furi_string_printf(xstr, "x: %u  OK=play tone", my_model->x);
     canvas_draw_str(canvas, 44, 24, furi_string_get_cstr(xstr));
 
     furi_string_printf(xstr, "random: %u", (uint8_t)(furi_hal_random_get() % 256));
     canvas_draw_str(canvas, 44, 36, furi_string_get_cstr(xstr));
-    // furi_string_printf(
-    //     xstr,
-    //     "Bandwidth: %s (%u)",
-    //     config_bw_names[my_model->config_bw_index],
-    //     config_bw_values[my_model->config_bw_index]);
-    // canvas_draw_str(canvas, 44, 48, furi_string_get_cstr(xstr));
-    // furi_string_printf(xstr, "name: %s", furi_string_get_cstr(my_model->config_freq_name));
-    // canvas_draw_str(canvas, 44, 60, furi_string_get_cstr(xstr));
+    
     furi_string_free(xstr);
 }
 
@@ -658,7 +592,7 @@ static void lora_view_sniffer_enter_callback(void* context) {
  * @param      context  The context - LoRaApp object.
 */
 static void lora_view_transmitter_enter_callback(void* context) {
-    uint32_t period = furi_ms_to_ticks(200);
+    uint32_t period = furi_ms_to_ticks(1000);
     LoRaApp* app = (LoRaApp*)context;
     furi_assert(app->timer == NULL);
     app->timer =
@@ -815,11 +749,11 @@ static bool lora_view_sniffer_input_callback(InputEvent* event, void* context) {
                     model->flag_file = !model->flag_file;
 
                     if(model->flag_file) {
-                        storage_file_open(model->file, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
+                        storage_file_open(model->file_rx, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
                         FURI_LOG_E(TAG,"OPEN FILE ");
                     }
                     else {
-                        storage_file_close(model->file);
+                        storage_file_close(model->file_rx);
                         FURI_LOG_E(TAG,"CLOSE FILE ");
                     }
                 },
@@ -833,6 +767,61 @@ static bool lora_view_sniffer_input_callback(InputEvent* event, void* context) {
     return false;
 }
 
+void pito(void* context) {
+
+    LoRaApp* app = (LoRaApp*)context;
+    LoRaTransmitterModel* model = view_get_model(app->view_transmitter);
+
+    uint8_t transmitBuff[64];
+    FuriString* predefined_filepath = furi_string_alloc_set_str(PATHAPP);
+    FuriString* selected_filepath = furi_string_alloc();
+    DialogsFileBrowserOptions browser_options;
+    dialog_file_browser_set_basic_options(&browser_options, LORA_LOG_FILE_EXTENSION, NULL);
+    browser_options.base_path = PATHAPP;
+
+    dialog_file_browser_show(model->dialogs_tx, selected_filepath, predefined_filepath, &browser_options);
+
+    if(storage_file_open(
+            model->file_tx, furi_string_get_cstr(selected_filepath), FSAM_READ, FSOM_OPEN_EXISTING)) {
+
+            model->flag_tx_file = true;
+            model->test = 1;
+
+            //furi_string_reset(model->text);
+            char buf[storage_file_size(model->file_tx)];
+            
+            storage_file_read(model->file_tx, buf, sizeof(buf));
+            buf[sizeof(buf)] = '\0';
+
+            uint16_t maxlen = sizeof(buf);
+            
+            for(uint16_t i = 0,j = 0; i < maxlen; i++,j++) {
+                
+                transmitBuff[j] = buf[i];
+                if(buf[i] == '\n') {
+                    transmitBuff[j] = '\0';
+                    transmit(transmitBuff, j);
+                    furi_delay_ms(10);
+                    j = 0;
+                    i++;
+                }
+            }
+    } else {
+        dialog_message_show_storage_error(model->dialogs_tx, "Cannot open File");
+    }
+    storage_file_close(model->file_tx);
+    model->test = 0;
+    furi_string_free(selected_filepath);
+    furi_string_free(predefined_filepath);
+
+    furi_hal_gpio_write(pin_led, true);
+    furi_delay_ms(50);
+    furi_hal_gpio_write(pin_led, false);
+
+    model->flag_tx_file = false;
+
+}
+
 /**
  * @brief      Callback for sniffer screen input.
  * @details    This function is called when the user presses a button while on the transmitter screen.
@@ -842,62 +831,36 @@ static bool lora_view_sniffer_input_callback(InputEvent* event, void* context) {
 */
 static bool lora_view_transmitter_input_callback(InputEvent* event, void* context) {
     LoRaApp* app = (LoRaApp*)context;
-    if(event->type == InputTypeShort) {
-        if(event->key == InputKeyLeft) {
-            // Left button clicked, reduce x coordinate.
-            bool redraw = true;
-            with_view_model(
-                app->view_transmitter,
-                LoRaTransmitterModel * model,
-                {
-                    if(model->x > 0) {
-                        model->x--;
-                    }
-                },
-                redraw);
-        } else if(event->key == InputKeyRight) {
-            // Right button clicked, increase x coordinate.
-            bool redraw = true;
-            with_view_model(
-                app->view_transmitter,
-                LoRaTransmitterModel * model,
-                {
-                    // Should we have some maximum value?
-                    model->x++;
-                },
-                redraw);
-        }
-    } else if(event->type == InputTypePress) {
-        if(event->key == InputKeyOk) {
-            // We choose to send a custom event when user presses OK button.  lora_custom_event_callback will
-            // handle our LoRaEventIdOkPressed event.  We could have just put the code from
-            // lora_custom_event_callback here, it's a matter of preference.
 
-            bool redraw = true;
-            with_view_model(
-                app->view_transmitter,
-                LoRaTransmitterModel * model,
-                {
-                    // Start/Stop recording
-                    model->x = 0;
-
-                    // if(model->flag_file) {
-                    //     storage_file_open(model->file, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
-                    //     FURI_LOG_E(TAG,"OPEN FILE ");
-                    // }
-                    // else {
-                    //     storage_file_close(model->file);
-                    //     FURI_LOG_E(TAG,"CLOSE FILE ");
-                    // }
-                },
-                redraw);
-
-            view_dispatcher_send_custom_event(app->view_dispatcher, LoRaEventIdOkPressed);
-            return true;
-        }
+    bool consumed = false;
+    if(event->type == InputTypeShort || event->type == InputTypeRepeat) {
+        with_view_model(
+            app->view_transmitter,
+            LoRaTransmitterModel * model,
+            {
+                if(event->key == InputKeyLeft && model->test > 0) {
+                    //model->test--;
+                    consumed = true;
+                } else if(
+                    event->key == InputKeyRight) { //&&
+                    //model->test < (COUNT_OF(view_lora_tx_tests) - 1)) {
+                    //model->test++;
+                    consumed = true;
+                } else if(event->key == InputKeyDown) { //&& model->size > 0) {
+                    //model->size--;
+                    consumed = true;
+                } else if(event->key == InputKeyUp) { //&& model->size < 24) {
+                    //model->size++;
+                    consumed = true;
+                } else if(event->key == InputKeyOk) {
+                    pito(app);
+                    consumed = true;
+                }
+            },
+            consumed);
     }
 
-    return false;
+    return consumed;
 }
 
 static void lora_app_config_set_payload_length(VariableItem* item) {
@@ -972,14 +935,6 @@ static LoRaApp* lora_app_alloc() {
     byte_input_set_result_callback(
         app->byte_input, SetValue, NULL, app, app->byte_buffer, app->byte_buffer_size); 
 
-    // view_dispatcher_add_view(
-    //     app->view_dispatcher, LoRaViewPayloadLenInput, byte_input_get_view(app->payload_len_input));
-
-    // byte_input_set_header_text(app->payload_len_input, "Set payload lenght");
-    // byte_input_set_result_callback(
-    //     app->payload_len_input, lora_config_payload_len_byte_updated, NULL, app, app->byte_buffer, 2);    
-
-
     app->packetPayloadLength = 16;
 
     app->variable_item_list_config = variable_item_list_alloc();
@@ -1021,7 +976,7 @@ static LoRaApp* lora_app_alloc() {
     variable_item_set_current_value_index(item, 16);
     variable_item_set_current_value_text(item, "16");    
 
-    // header type
+    // Header Type
     item = variable_item_list_add(
         app->variable_item_list_config,
         config_header_type_config_label,
@@ -1032,6 +987,7 @@ static LoRaApp* lora_app_alloc() {
     variable_item_set_current_value_index(item, config_header_type_index);
     variable_item_set_current_value_text(item, config_header_type_names[config_header_type_index]);
 
+    // CRC
     item = variable_item_list_add(
         app->variable_item_list_config,
         config_crc_config_label,
@@ -1042,6 +998,7 @@ static LoRaApp* lora_app_alloc() {
     variable_item_set_current_value_index(item, config_crc_index);
     variable_item_set_current_value_text(item, config_crc_names[config_crc_index]);
 
+    // Inverted IQ
     item = variable_item_list_add(
         app->variable_item_list_config,
         config_iq_config_label,
@@ -1072,20 +1029,20 @@ static LoRaApp* lora_app_alloc() {
     view_set_context(app->view_sniffer, app);
     view_set_custom_callback(app->view_sniffer, lora_view_sniffer_custom_event_callback);
     view_allocate_model(app->view_sniffer, ViewModelTypeLockFree, sizeof(LoRaSnifferModel));
-    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    LoRaSnifferModel* model_s = view_get_model(app->view_sniffer);
 
-    model->config_freq_name = config_freq_name;
-    model->config_bw_index = config_bw_index;
-    model->config_sf_index = config_sf_index;
-    model->config_header_type_index = config_sf_index;
-    model->config_crc_index = config_sf_index;
-    model->config_iq_index = config_sf_index;
+    model_s->config_freq_name = config_freq_name;
+    model_s->config_bw_index = config_bw_index;
+    model_s->config_sf_index = config_sf_index;
+    model_s->config_header_type_index = config_header_type_index;
+    model_s->config_crc_index = config_crc_index;
+    model_s->config_iq_index = config_iq_index;
     
-    model->x = 0;    
+    model_s->x = 0;
     
-    model->dialogs = furi_record_open(RECORD_DIALOGS);
-    model->storage = furi_record_open(RECORD_STORAGE);
-    model->file = storage_file_alloc(model->storage);
+    model_s->dialogs_rx = furi_record_open(RECORD_DIALOGS);
+    model_s->storage_rx = furi_record_open(RECORD_STORAGE);
+    model_s->file_rx = storage_file_alloc(model_s->storage_rx);
 
     view_dispatcher_add_view(app->view_dispatcher, LoRaViewSniffer, app->view_sniffer);
 
@@ -1100,7 +1057,11 @@ static LoRaApp* lora_app_alloc() {
     view_allocate_model(app->view_transmitter, ViewModelTypeLockFree, sizeof(LoRaTransmitterModel));
     LoRaTransmitterModel* model_t = view_get_model(app->view_transmitter);
 
-    model_t->x = 0;    
+    model_t->x = 0;
+
+    model_t->dialogs_tx = furi_record_open(RECORD_DIALOGS);
+    model_t->storage_tx = furi_record_open(RECORD_STORAGE);
+    model_t->file_tx = storage_file_alloc(model_t->storage_tx);
 
     view_dispatcher_add_view(app->view_dispatcher, LoraViewTransmitter, app->view_transmitter);
 
@@ -1138,7 +1099,12 @@ static void lora_app_free(LoRaApp* app) {
     furi_record_close(RECORD_NOTIFICATION);
 
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
-    storage_file_free(model->file);
+    storage_file_free(model->file_rx);
+    furi_record_close(RECORD_STORAGE);
+    furi_record_close(RECORD_DIALOGS);
+
+    LoRaTransmitterModel* model_t = view_get_model(app->view_transmitter);
+    storage_file_free(model_t->file_tx);
     furi_record_close(RECORD_STORAGE);
     furi_record_close(RECORD_DIALOGS);
 
@@ -1185,7 +1151,7 @@ int32_t main_lora_app(void* _p) {
 
     if(!begin()){
 
-        DialogsApp* dialogs = furi_record_open(RECORD_DIALOGS);
+        DialogsApp* dialogs_msg = furi_record_open(RECORD_DIALOGS);
         DialogMessage* message = dialog_message_alloc();
         dialog_message_set_text(
             message,
@@ -1194,7 +1160,7 @@ int32_t main_lora_app(void* _p) {
             0,
             AlignLeft,
             AlignTop);
-        dialog_message_show(dialogs, message);
+        dialog_message_show(dialogs_msg, message);
         dialog_message_free(message);
         furi_record_close(RECORD_DIALOGS);
         return 0;
