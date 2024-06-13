@@ -22,6 +22,8 @@
 #define PATHLORA PATHAPPEXT "/data.log"
 #define LORA_LOG_FILE_EXTENSION ".log"
 
+#define MAX_LINE_LENGTH 256
+
 #define TIME_LEN 12
 #define DATE_LEN 14
 
@@ -101,7 +103,8 @@ typedef struct {
     uint8_t* byte_buffer; // Temporary buffer for text input
     uint32_t byte_buffer_size; // Size of temporary buffer
 
-    FuriTimer* timer; // Timer for redrawing the screen
+    FuriTimer* timer_rx; // Timer for redrawing the sniffer screen
+    FuriTimer* timer_tx; // Timer for redrawing the transmitter screen
 
     int config_frequency;
 
@@ -464,7 +467,7 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
 
     bool flag_file = my_model->flag_file;
 
-    canvas_draw_icon(canvas, my_model->x, 20, &I_glyph_1_14x40);
+    canvas_draw_icon(canvas, 0, 17, &I_flippers_cat);
 
         //Receive a packet over radio
     int bytesRead = lora_receive_async(receiveBuff, sizeof(receiveBuff));
@@ -503,27 +506,40 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
         asciiBuff[19] = '.';
         asciiBuff[20] = '\0';    
     }
-    //canvas_draw_str(canvas, 1, 10, "LEFT/RIGHT to change x");
-    canvas_draw_str(canvas, 1, 10, (const char*)receiveBuff);
 
     FuriString* xstr = furi_string_alloc();
 
+    if(flag_file) {
+        canvas_draw_icon(canvas, 110, 1, &I_write);
+        furi_string_printf(xstr, "Recording...");
+        canvas_draw_str(canvas, 60, 20, furi_string_get_cstr(xstr));
+    }
+    else {
+        canvas_draw_icon(canvas, 110, 1, &I_no_write);
+        furi_string_printf(xstr, "            ");
+        canvas_draw_str(canvas, 60, 20, furi_string_get_cstr(xstr));
+    }
+
+    canvas_draw_str(canvas, 1, 10, (const char*)receiveBuff);
+
+
+
     furi_string_printf(xstr, "RSSI: %d  ", getRSSI());
-    canvas_draw_str(canvas, 60, 10, furi_string_get_cstr(xstr));
+    canvas_draw_str(canvas, 1, 19, furi_string_get_cstr(xstr));
 
-    furi_string_printf(xstr, "x: %u  OK=play tone", my_model->x);
-    canvas_draw_str(canvas, 44, 24, furi_string_get_cstr(xstr));
+    // furi_string_printf(xstr, "x: %u  OK=play tone", my_model->x);
+    // canvas_draw_str(canvas, 44, 24, furi_string_get_cstr(xstr));
 
-    furi_string_printf(xstr, "random: %u", (uint8_t)(furi_hal_random_get() % 256));
-    canvas_draw_str(canvas, 44, 36, furi_string_get_cstr(xstr));
+    //  furi_string_printf(xstr, "%u", (uint8_t)(furi_hal_random_get() % 256));
+    //  canvas_draw_str(canvas, 60, 20, furi_string_get_cstr(xstr));
+
     furi_string_printf(
         xstr,
-        "Bandwidth: %s (%u)",
-        config_bw_names[my_model->config_bw_index],
-        config_bw_values[my_model->config_bw_index]);
-    canvas_draw_str(canvas, 44, 48, furi_string_get_cstr(xstr));
-    furi_string_printf(xstr, "name: %s", furi_string_get_cstr(my_model->config_freq_name));
-    canvas_draw_str(canvas, 44, 60, furi_string_get_cstr(xstr));
+        "BW:%s",
+        config_bw_names[my_model->config_bw_index]);
+    canvas_draw_str(canvas, 1, 28, furi_string_get_cstr(xstr));
+    furi_string_printf(xstr, "FQ:%s MHz", furi_string_get_cstr(my_model->config_freq_name));
+    canvas_draw_str(canvas, 60, 28, furi_string_get_cstr(xstr));
     furi_string_free(xstr);
 }
 
@@ -536,18 +552,21 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
 static void lora_view_transmitter_draw_callback(Canvas* canvas, void* model) {
     LoRaTransmitterModel* my_model = (LoRaTransmitterModel*)model;
 
-    canvas_draw_icon(canvas, my_model->x, 20, &I_glyph_1_14x40);
+    my_model->x = 0;
 
-    canvas_draw_str(canvas, 1, 10, "LEFT/RIGHT to change x");
+    canvas_draw_icon(canvas, 1, 3, &I_kitty_tx);
+
+    canvas_draw_str(canvas, 1, 10, "Press central");
+    canvas_draw_str(canvas, 1, 20, "button to");
+    canvas_draw_str(canvas, 1, 30, "browser");
 
     FuriString* xstr = furi_string_alloc();
-    furi_string_printf(xstr, "x: %u  OK=play tone", my_model->x);
-    canvas_draw_str(canvas, 44, 24, furi_string_get_cstr(xstr));
 
-    furi_string_printf(xstr, "random: %u", (uint8_t)(furi_hal_random_get() % 256));
-    canvas_draw_str(canvas, 44, 36, furi_string_get_cstr(xstr));
+    furi_string_printf(xstr, "TX: %u", (uint8_t)(furi_hal_random_get() % 256));
+    canvas_draw_str(canvas, 1, 50, furi_string_get_cstr(xstr));
     
     furi_string_free(xstr);
+    //furi_delay_ms(500);
 }
 
 /**
@@ -577,12 +596,12 @@ static void lora_view_transmitter_timer_callback(void* context) {
  * @param      context  The context - LoRaApp object.
 */
 static void lora_view_sniffer_enter_callback(void* context) {
-    uint32_t period = furi_ms_to_ticks(200);
+    uint32_t period = furi_ms_to_ticks(1000);
     LoRaApp* app = (LoRaApp*)context;
-    furi_assert(app->timer == NULL);
-    app->timer =
+    furi_assert(app->timer_rx == NULL);
+    app->timer_rx =
         furi_timer_alloc(lora_view_sniffer_timer_callback, FuriTimerTypePeriodic, context);
-    furi_timer_start(app->timer, period);
+    furi_timer_start(app->timer_rx, period);
 }
 
 /**
@@ -594,10 +613,10 @@ static void lora_view_sniffer_enter_callback(void* context) {
 static void lora_view_transmitter_enter_callback(void* context) {
     uint32_t period = furi_ms_to_ticks(1000);
     LoRaApp* app = (LoRaApp*)context;
-    furi_assert(app->timer == NULL);
-    app->timer =
+    furi_assert(app->timer_tx == NULL);
+    app->timer_tx =
         furi_timer_alloc(lora_view_transmitter_timer_callback, FuriTimerTypePeriodic, context);
-    furi_timer_start(app->timer, period);
+    furi_timer_start(app->timer_tx, period);
 }
 
 /**
@@ -607,9 +626,10 @@ static void lora_view_transmitter_enter_callback(void* context) {
 */
 static void lora_view_sniffer_exit_callback(void* context) {
     LoRaApp* app = (LoRaApp*)context;
-    furi_timer_stop(app->timer);
-    furi_timer_free(app->timer);
-    app->timer = NULL;
+    furi_timer_stop(app->timer_rx);
+    furi_timer_free(app->timer_rx);
+    app->timer_rx = NULL;
+    FURI_LOG_E(TAG,"Stop timer rx");
 }
 
 /**
@@ -619,9 +639,10 @@ static void lora_view_sniffer_exit_callback(void* context) {
 */
 static void lora_view_transmitter_exit_callback(void* context) {
     LoRaApp* app = (LoRaApp*)context;
-    furi_timer_stop(app->timer);
-    furi_timer_free(app->timer);
-    app->timer = NULL;
+    furi_timer_stop(app->timer_tx);
+    furi_timer_free(app->timer_tx);
+    app->timer_tx = NULL;
+    FURI_LOG_E(TAG,"Stop timer tx");
 }
 
 /**
@@ -767,12 +788,32 @@ static bool lora_view_sniffer_input_callback(InputEvent* event, void* context) {
     return false;
 }
 
-void pito(void* context) {
+void tx_payload(const char *line) {
+    const char *key = "\"payload\":\"";
+    char *start = strstr(line, key);
+    if (start) {
+        start += strlen(key); // Advance the pointer to the end of “payload”:
+        char *end = strchr(start, '"'); // find next "
+        if (end) {
+            // Calculates the length of the substring
+            size_t length = end - start;
+            char payload[length + 1]; // +1 to end in NULL
+            strncpy(payload, start, length);
+            payload[length] = '\0'; // adds the NULL
+            
+            FURI_LOG_E(TAG,"%s\n", payload);
+            transmit((uint8_t *)payload, length);
+            furi_delay_ms(10);
+        }
+    }
+}
+
+void send_data(void* context) {
 
     LoRaApp* app = (LoRaApp*)context;
     LoRaTransmitterModel* model = view_get_model(app->view_transmitter);
 
-    uint8_t transmitBuff[64];
+    //uint8_t transmitBuff[64];
     FuriString* predefined_filepath = furi_string_alloc_set_str(PATHAPP);
     FuriString* selected_filepath = furi_string_alloc();
     DialogsFileBrowserOptions browser_options;
@@ -787,25 +828,24 @@ void pito(void* context) {
             model->flag_tx_file = true;
             model->test = 1;
 
-            //furi_string_reset(model->text);
-            char buf[storage_file_size(model->file_tx)];
-            
-            storage_file_read(model->file_tx, buf, sizeof(buf));
-            buf[sizeof(buf)] = '\0';
+            char buffer[256];
+            size_t buffer_index = 0;
+            size_t bytes_read;
+            char c;
 
-            uint16_t maxlen = sizeof(buf);
-            
-            for(uint16_t i = 0,j = 0; i < maxlen; i++,j++) {
-                
-                transmitBuff[j] = buf[i];
-                if(buf[i] == '\n') {
-                    transmitBuff[j] = '\0';
-                    transmit(transmitBuff, j);
-                    furi_delay_ms(10);
-                    j = 0;
-                    i++;
+            while ((bytes_read = storage_file_read(model->file_tx, &c, 1)) > 0) {
+                if (c == '\n' || buffer_index >= 256 - 1) {
+                    buffer[buffer_index] = '\0';
+
+                    FURI_LOG_E(TAG,"%s\n", buffer);
+                    tx_payload(buffer);
+
+                    buffer_index = 0;
+                } else {
+                    buffer[buffer_index++] = c;
                 }
             }
+
     } else {
         dialog_message_show_storage_error(model->dialogs_tx, "Cannot open File");
     }
@@ -853,7 +893,7 @@ static bool lora_view_transmitter_input_callback(InputEvent* event, void* contex
                     //model->size++;
                     consumed = true;
                 } else if(event->key == InputKeyOk) {
-                    pito(app);
+                    send_data(app);
                     consumed = true;
                 }
             },
@@ -1072,7 +1112,7 @@ static LoRaApp* lora_app_alloc() {
         0,
         128,
         64,
-        "This is a sample application.\n---\nReplace code and message\nwith your content!\n\nauthor: @codeallnight\nhttps://discord.com/invite/NsjCvqwPAd\nhttps://youtube.com/@MrDerekJamison");
+        "This is a LoRa sniffer app.\n---\nBrought to you by\nElectronicCats!\n\nauthor: @pigpen\nhttps://github.com/ElectronicCats/flipper-SX1262-LoRa");
     view_set_previous_callback(
         widget_get_view(app->widget_about), lora_navigation_submenu_callback);
     view_dispatcher_add_view(
