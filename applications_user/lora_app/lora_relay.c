@@ -38,7 +38,7 @@ const GpioPin* const pin_back = &gpio_button_back;
 #define TAG "LoRa"
 
 uint8_t receiveBuff[255];
-char asciiBuff[255];
+char asciiBuff[512];
 
 void abandone();
 int16_t getRSSI();
@@ -475,6 +475,7 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
     if (bytesRead > -1) {
         FURI_LOG_E(TAG,"Packet received... ");
         receiveBuff[bytesRead] = '\0';
+        bytesToAscii(receiveBuff, bytesRead);
         
         if(flag_file) {
 
@@ -489,7 +490,9 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
 
             char final_string[400];
             const char* freq_str = furi_string_get_cstr(my_model->config_freq_name);
-            snprintf(final_string, 400, "{\"date\":\"%s\", \"time\":\"%s\", \"frequency\":\"%s\", \"bw\":\"%s\", \"sf\":\"%s\", \"RSSI\":\"%d\", \"payload\":\"%s\"}", date_string, time_string, freq_str, config_bw_names[my_model->config_bw_index], config_sf_names[my_model->config_sf_index],getRSSI(),receiveBuff);
+
+            //JSON format
+            snprintf(final_string, 400, "{\"date\":\"%s\", \"time\":\"%s\", \"frequency\":\"%s\", \"bw\":\"%s\", \"sf\":\"%s\", \"RSSI\":\"%d\", \"payload\":\"%s\"}", date_string, time_string, freq_str, config_bw_names[my_model->config_bw_index], config_sf_names[my_model->config_sf_index],getRSSI(),asciiBuff); //receiveBuff);
 
             FURI_LOG_E(TAG, "TS: %s", final_string);
             FURI_LOG_E(TAG, "Length: %d", strlen(final_string) + 1);  
@@ -500,11 +503,11 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
         }
 
         FURI_LOG_E(TAG,"%s",receiveBuff);  
-        bytesToAscii(receiveBuff, 16);
-        asciiBuff[17] = '.';
-        asciiBuff[18] = '.';
-        asciiBuff[19] = '.';
-        asciiBuff[20] = '\0';    
+        // bytesToAscii(receiveBuff, 16);
+        // asciiBuff[17] = '.';
+        // asciiBuff[18] = '.';
+        // asciiBuff[19] = '.';
+        // asciiBuff[20] = '\0';
     }
 
     FuriString* xstr = furi_string_alloc();
@@ -562,7 +565,7 @@ static void lora_view_transmitter_draw_callback(Canvas* canvas, void* model) {
 
     FuriString* xstr = furi_string_alloc();
 
-    furi_string_printf(xstr, "TX: %u", (uint8_t)(furi_hal_random_get() % 256));
+    //furi_string_printf(xstr, "TX: %u", (uint8_t)(furi_hal_random_get() % 256));
     canvas_draw_str(canvas, 1, 50, furi_string_get_cstr(xstr));
     
     furi_string_free(xstr);
@@ -587,6 +590,7 @@ static void lora_view_sniffer_timer_callback(void* context) {
 static void lora_view_transmitter_timer_callback(void* context) {
     LoRaApp* app = (LoRaApp*)context;
     view_dispatcher_send_custom_event(app->view_dispatcher, LoRaEventIdRedrawScreen);
+    // HERE!!!
 }
 
 /**
@@ -893,7 +897,10 @@ static bool lora_view_transmitter_input_callback(InputEvent* event, void* contex
                     //model->size++;
                     consumed = true;
                 } else if(event->key == InputKeyOk) {
-                    send_data(app);
+                    uint32_t period = furi_ms_to_ticks(1000);
+                    furi_timer_stop(app->timer_tx);
+                    send_data(app);                
+                    furi_timer_start(app->timer_tx, period);
                     consumed = true;
                 }
             },
