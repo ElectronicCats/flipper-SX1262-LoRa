@@ -446,14 +446,20 @@ static void lora_setting_item_clicked(void* context, uint32_t index) {
     }
 }
 
-void bytesToAscii(uint8_t* buffer, uint8_t length) {
+void bytesToAsciiHex(uint8_t* buffer, uint8_t length) {
     uint8_t i;
     for (i = 0; i < length; ++i) {
         asciiBuff[i * 2] = "0123456789ABCDEF"[buffer[i] >> 4]; // High nibble
         asciiBuff[i * 2 + 1] = "0123456789ABCDEF"[buffer[i] & 0x0F]; // Low nibble
     }
     asciiBuff[length * 2] = '\0'; // Null-terminate the string
-    FURI_LOG_E(TAG,"OUT bytesToAscii ");
+    FURI_LOG_E(TAG,"OUT bytesToAsciiHex ");
+}
+
+void asciiHexToBytes(const char *hex, uint8_t *bytes, size_t length) {
+    for (size_t i = 0; i < length; i++) {
+        sscanf(hex + 2 * i, "%02x", &bytes[i]);
+    }
 }
 
 /**
@@ -475,7 +481,7 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
     if (bytesRead > -1) {
         FURI_LOG_E(TAG,"Packet received... ");
         receiveBuff[bytesRead] = '\0';
-        bytesToAscii(receiveBuff, bytesRead);
+        bytesToAsciiHex(receiveBuff, bytesRead);
         
         if(flag_file) {
 
@@ -503,7 +509,7 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
         }
 
         FURI_LOG_E(TAG,"%s",receiveBuff);  
-        // bytesToAscii(receiveBuff, 16);
+        // bytesToAsciiHex(receiveBuff, 16);
         // asciiBuff[17] = '.';
         // asciiBuff[18] = '.';
         // asciiBuff[19] = '.';
@@ -804,9 +810,17 @@ void tx_payload(const char *line) {
             char payload[length + 1]; // +1 to end in NULL
             strncpy(payload, start, length);
             payload[length] = '\0'; // adds the NULL
+
+            FURI_LOG_E(TAG,"%s\n", payload);
+
+            size_t byte_length = length / 2;
+            uint8_t bytes[byte_length];
+
+            // Convert hex string to bytes
+            asciiHexToBytes(payload, bytes, byte_length);
             
             FURI_LOG_E(TAG,"%s\n", payload);
-            transmit((uint8_t *)payload, length);
+            transmit(bytes, byte_length);
             furi_delay_ms(10);
         }
     }
