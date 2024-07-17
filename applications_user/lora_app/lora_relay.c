@@ -458,7 +458,7 @@ void bytesToAsciiHex(uint8_t* buffer, uint8_t length) {
 
 void asciiHexToBytes(const char *hex, uint8_t *bytes, size_t length) {
     for (size_t i = 0; i < length; i++) {
-        sscanf(hex + 2 * i, "%02x", &bytes[i]);
+        sscanf(hex + 2 * i, "%02hhx", &bytes[i]);
     }
 }
 
@@ -498,7 +498,7 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
             const char* freq_str = furi_string_get_cstr(my_model->config_freq_name);
 
             //JSON format
-            snprintf(final_string, 400, "{\"date\":\"%s\", \"time\":\"%s\", \"frequency\":\"%s\", \"bw\":\"%s\", \"sf\":\"%s\", \"RSSI\":\"%d\", \"payload\":\"%s\"}", date_string, time_string, freq_str, config_bw_names[my_model->config_bw_index], config_sf_names[my_model->config_sf_index],getRSSI(),asciiBuff); //receiveBuff);
+            snprintf(final_string, 666, "{\"date\":\"%s\", \"time\":\"%s\", \"frequency\":\"%s\", \"bw\":\"%s\", \"sf\":\"%s\", \"RSSI\":\"%d\", \"payload\":\"%s\"}", date_string, time_string, freq_str, config_bw_names[my_model->config_bw_index], config_sf_names[my_model->config_sf_index],getRSSI(),asciiBuff); //receiveBuff);
 
             FURI_LOG_E(TAG, "TS: %s", final_string);
             FURI_LOG_E(TAG, "Length: %d", strlen(final_string) + 1);  
