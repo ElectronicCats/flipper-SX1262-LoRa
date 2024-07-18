@@ -406,7 +406,7 @@ static void lora_config_freq_text_updated(void* context) {
 }
 
 
-static void SetValue(void* context) {
+static void set_value(void* context) {
     LoRaApp* app = (LoRaApp*)context;
 
     FURI_LOG_E(TAG, "Byte buffer: %s", (char *)app->byte_buffer);
@@ -890,8 +890,10 @@ void send_data(void* context) {
                     buffer[buffer_index] = '\0';
 
                     FURI_LOG_E(TAG,"%s\n", buffer);
+                    if(!model->flag_signal){
+                        return;
+                    }
                     tx_payload(buffer);
-
                     buffer_index = 0;
                 } else {
                     buffer[buffer_index++] = c;
@@ -947,7 +949,15 @@ static bool lora_view_transmitter_input_callback(InputEvent* event, void* contex
                 } else if(event->key == InputKeyOk) {
                     uint32_t period = furi_ms_to_ticks(1000);
                     furi_timer_stop(app->timer_tx);
+                    model->flag_signal = 1;  
                     send_data(app);                
+                    furi_timer_start(app->timer_tx, period);
+                    consumed = true;
+                } else if(event->key == InputKeyBack) {
+                    uint32_t period = furi_ms_to_ticks(1000);
+                    furi_timer_stop(app->timer_tx);
+                    // FLAG TO STOP TRANSMISSION 
+                    model->flag_signal = 0;             
                     furi_timer_start(app->timer_tx, period);
                     consumed = true;
                 }
@@ -973,7 +983,7 @@ static void lora_app_config_set_payload_length(VariableItem* item) {
     app->byte_buffer = (uint8_t*)malloc(app->byte_buffer_size);
 
     byte_input_set_result_callback(
-        app->byte_input, SetValue, NULL, app, app->byte_buffer, app->byte_buffer_size); 
+        app->byte_input, set_value, NULL, app, app->byte_buffer, app->byte_buffer_size); 
 
     // Order is preamble, header type, packet length, CRC, IQ
     setPacketParams(app->packetPreamble, app->packetHeaderType, app->packetPayloadLength, app->packetCRC, app->packetInvertIQ);
@@ -1028,7 +1038,7 @@ static LoRaApp* lora_app_alloc() {
 
     byte_input_set_header_text(app->byte_input, "Set byte to LoRa TX");
     byte_input_set_result_callback(
-        app->byte_input, SetValue, NULL, app, app->byte_buffer, app->byte_buffer_size); 
+        app->byte_input, set_value, NULL, app, app->byte_buffer, app->byte_buffer_size); 
 
     app->packetPayloadLength = 16;
 
