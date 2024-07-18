@@ -19,7 +19,7 @@
 
 #define PATHAPP "apps_data/lora"
 #define PATHAPPEXT EXT_PATH(PATHAPP)
-#define PATHLORA PATHAPPEXT "/data.log"
+#define PATHLORA PATHAPPEXT "/data_%d.log"
 #define LORA_LOG_FILE_EXTENSION ".log"
 
 #define MAX_LINE_LENGTH 256
@@ -143,6 +143,22 @@ typedef struct {
     File* file_tx;
     uint8_t x; // The x coordinate
 } LoRaTransmitterModel;
+
+
+void makePaths(void* context) {
+
+    LoRaApp* app = (LoRaApp*)context;
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+
+    furi_assert(app);
+    if(!storage_simply_mkdir(model->storage_rx, PATHAPPEXT)) {
+        dialog_message_show_storage_error(model->dialogs_rx, "Cannot create\napp folder");
+    }
+    // if(!storage_simply_mkdir(model->storage_rx, PATHLOGS)) {
+    //     dialog_message_show_storage_error(model->dialogs_rx, "Cannot create\nlogs folder");
+    // }
+}
 
 /**
  * @brief      Callback for exiting the application.
@@ -780,8 +796,26 @@ static bool lora_view_sniffer_input_callback(InputEvent* event, void* context) {
                     model->flag_file = !model->flag_file;
 
                     if(model->flag_file) {
-                        storage_file_open(model->file_rx, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
+
+                        // if(!storage_simply_mkdir(model->storage_rx, PATHAPPEXT)) {
+                        //     FURI_LOG_E(TAG, "Failed to create directory %s", PATHAPPEXT);
+                        //     return;
+                        // }
+                        
+                        char filename[256];
+                        int file_index = 0;
+                        
+                        do {
+                            snprintf(filename, sizeof(filename), PATHLORA, file_index);
+                            file_index++;
+                        } while(storage_file_exists(model->storage_rx, filename));
+                        
+                        if(!storage_file_open(model->file_rx, filename, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+                            FURI_LOG_E(TAG, "Failed to open file %s", filename);
+                            return 0;
+                        }
                         FURI_LOG_E(TAG,"OPEN FILE ");
+                        
                     }
                     else {
                         storage_file_close(model->file_rx);
@@ -1123,6 +1157,8 @@ static LoRaApp* lora_app_alloc() {
     model_t->dialogs_tx = furi_record_open(RECORD_DIALOGS);
     model_t->storage_tx = furi_record_open(RECORD_STORAGE);
     model_t->file_tx = storage_file_alloc(model_t->storage_tx);
+
+    makePaths(app);
 
     view_dispatcher_add_view(app->view_dispatcher, LoraViewTransmitter, app->view_transmitter);
 
