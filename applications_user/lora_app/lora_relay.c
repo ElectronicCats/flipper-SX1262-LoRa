@@ -959,6 +959,7 @@ static bool lora_view_transmitter_input_callback(InputEvent* event, void* contex
                     // FLAG TO STOP TRANSMISSION 
                     model->flag_signal = 0;             
                     furi_timer_start(app->timer_tx, period);
+                    view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewSubmenu);
                     consumed = true;
                 }
             },
@@ -1038,7 +1039,11 @@ static LoRaApp* lora_app_alloc() {
 
     byte_input_set_header_text(app->byte_input, "Set byte to LoRa TX");
     byte_input_set_result_callback(
-        app->byte_input, set_value, NULL, app, app->byte_buffer, app->byte_buffer_size); 
+        app->byte_input, set_value, NULL, app, app->byte_buffer, app->byte_buffer_size);
+
+    // Pressing the BACK button will reload the configure screen.
+    view_set_previous_callback(
+        byte_input_get_view(app->byte_input), lora_navigation_configure_callback);  
 
     app->packetPayloadLength = 16;
 
