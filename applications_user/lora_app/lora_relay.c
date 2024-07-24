@@ -245,6 +245,7 @@ static void lora_submenu_callback(void* context, uint32_t index) {
     }
 }
 
+// Bandwidth configuration
 const uint8_t config_bw_values[] = {
     0x00,
     0x08,
@@ -270,6 +271,7 @@ const char* const config_bw_names[] = {
     "500 kHz",
 };
 
+// Spreading Factor configuration
 const uint8_t config_sf_values[] = {
     0x05,
     0x06,
@@ -289,6 +291,86 @@ const char* const config_sf_names[] = {
     "SF10",
     "SF11",
     "SF12",
+};
+
+// Data Rate configuration for US915
+const uint8_t config_dr_values[] = {
+    0x00, // DR0
+    0x01, // DR1
+    0x02, // DR2
+    0x03, // DR3
+    0x04, // DR4
+    0x08, // DR8
+    0x09, // DR9
+    0x0A, // DR10
+    0x0B, // DR11
+    0x0C, // DR12
+    0x0D  // DR13
+};
+const char* const config_dr_names[] = {
+    "DR0 (SF10/125kHz)",
+    "DR1 (SF9/125kHz)",
+    "DR2 (SF8/125kHz)",
+    "DR3 (SF7/125kHz)",
+    "DR4 (SF8/500kHz)",
+    "DR8 (SF12/500kHz)",
+    "DR9 (SF11/500kHz)",
+    "DR10 (SF10/500kHz)",
+    "DR11 (SF9/500kHz)",
+    "DR12 (SF8/500kHz)",
+    "DR13 (SF7/500kHz)"
+};
+
+// Transmit Power configuration for US915
+const uint8_t config_txpower_values[] = {
+    0x00, // 30 dBm
+    0x01, // 28 dBm
+    0x02, // 26 dBm
+    0x03, // 24 dBm
+    0x04, // 22 dBm
+    0x05, // 20 dBm
+    0x06, // 18 dBm
+    0x07, // 16 dBm
+    0x08, // 14 dBm
+    0x09, // 12 dBm
+    0x0A  // 10 dBm
+};
+const char* const config_txpower_names[] = {
+    "30 dBm",
+    "28 dBm",
+    "26 dBm",
+    "24 dBm",
+    "22 dBm",
+    "20 dBm",
+    "18 dBm",
+    "16 dBm",
+    "14 dBm",
+    "12 dBm",
+    "10 dBm"
+};
+
+// Uplink channel frequencies for US915 (125 kHz channels)
+const uint32_t config_ul_channels_125k[] = {
+    902300000, 902500000, 902700000, 902900000, 903100000, 903300000, 903500000, 903700000,
+    903900000, 904100000, 904300000, 904500000, 904700000, 904900000, 905100000, 905300000,
+    905500000, 905700000, 905900000, 906100000, 906300000, 906500000, 906700000, 906900000,
+    907100000, 907300000, 907500000, 907700000, 907900000, 908100000, 908300000, 908500000,
+    908700000, 908900000, 909100000, 909300000, 909500000, 909700000, 909900000, 910100000,
+    910300000, 910500000, 910700000, 910900000, 911100000, 911300000, 911500000, 911700000,
+    911900000, 912100000, 912300000, 912500000, 912700000, 912900000, 913100000, 913300000,
+    913500000, 913700000, 913900000, 914100000, 914300000, 914500000, 914700000, 914900000
+};
+
+// Uplink channel frequencies for US915 (500 kHz channels)
+const uint32_t config_ul_channels_500k[] = {
+    903000000, 904600000, 906200000, 907800000,
+    909400000, 911000000, 912600000, 914200000
+};
+
+// Downlink channel frequencies for US915
+const uint32_t config_dl_channels[] = {
+    923300000, 923900000, 924500000, 925100000,
+    925700000, 926300000, 926900000, 927500000
 };
 
 //Header Type. 0x00 = Variable Len, 0x01 = Fixed Length
