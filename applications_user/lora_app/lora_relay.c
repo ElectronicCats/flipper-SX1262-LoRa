@@ -954,11 +954,8 @@ static bool lora_view_transmitter_input_callback(InputEvent* event, void* contex
                     furi_timer_start(app->timer_tx, period);
                     consumed = true;
                 } else if(event->key == InputKeyBack) {
-                    uint32_t period = furi_ms_to_ticks(1000);
-                    furi_timer_stop(app->timer_tx);
                     // FLAG TO STOP TRANSMISSION 
-                    model->flag_signal = 0;             
-                    furi_timer_start(app->timer_tx, period);
+                    model->flag_signal = 0;                   
                     view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewSubmenu);
                     consumed = true;
                 }
@@ -1041,9 +1038,8 @@ static LoRaApp* lora_app_alloc() {
     byte_input_set_result_callback(
         app->byte_input, set_value, NULL, app, app->byte_buffer, app->byte_buffer_size);
 
-    // Pressing the BACK button will reload the configure screen.
     view_set_previous_callback(
-        byte_input_get_view(app->byte_input), lora_navigation_configure_callback);  
+        byte_input_get_view(app->byte_input), lora_navigation_submenu_callback);  
 
     app->packetPayloadLength = 16;
 
