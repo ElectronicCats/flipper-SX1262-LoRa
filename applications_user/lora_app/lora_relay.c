@@ -58,9 +58,10 @@ void transmit(uint8_t *data, int dataLen);
 // Change this to BACKLIGHT_AUTO if you don't want the backlight to be continuously on.
 #define BACKLIGHT_ON 1
 
-// Our application menu has 3 items.  You can add more items if you want.
+// Our application menu has 6 items.  You can add more items if you want.
 typedef enum {
     LoRaSubmenuIndexConfigure,
+    LoRaSubmenuIndexLoRaWAN,
     LoRaSubmenuIndexSniffer,
     LoRaSubmenuIndexTransmitter,
     LoRaSubmenuIndexManualTX,
@@ -71,9 +72,9 @@ typedef enum {
 typedef enum {
     LoRaViewSubmenu, // The menu when the app starts
     LoRaViewFrequencyInput, // Input for configuring frequency settings
-    //LoRaViewPayloadLenInput, // Input for configuring payload length settings
     LoRaViewByteInput, // Input for send data (bytes)
     LoRaViewConfigure, // The configuration screen
+    LoRaViewLoRaWAN, // The presets LoRaWAN screen
     LoRaViewSniffer, // Sniffer
     LoraViewTransmitter, // Transmitter
     LoRaViewAbout, // The about screen with directions, link to social channel, etc.
@@ -92,6 +93,9 @@ typedef struct {
     ByteInput* byte_input; // The byte input screen
     //ByteInput* payload_len_input; // The payload length input screen
     VariableItemList* variable_item_list_config; // The configuration screen
+    VariableItemList* variable_item_list_lorawan; // The lorawan presets screen
+
+    View* view_lorawan; // LoRaWAN presets
     View* view_sniffer; // The main screen
     View* view_transmitter; // The other main screen
     Widget* widget_about; // The about screen
@@ -155,9 +159,6 @@ void makePaths(void* context) {
     if(!storage_simply_mkdir(model->storage_rx, PATHAPPEXT)) {
         dialog_message_show_storage_error(model->dialogs_rx, "Cannot create\napp folder");
     }
-    // if(!storage_simply_mkdir(model->storage_rx, PATHLOGS)) {
-    //     dialog_message_show_storage_error(model->dialogs_rx, "Cannot create\nlogs folder");
-    // }
 }
 
 /**
@@ -197,6 +198,22 @@ static uint32_t lora_navigation_configure_callback(void* _context) {
 }
 
 /**
+ * @brief      Callback for returning to LoRaWAN screen.
+ * @details    This function is called when user press back button.  We return VIEW_NONE to
+ *            indicate that we want to navigate to the LoRaWAN screen.
+ * @param      _context  The context - unused
+ * @return     next view id
+*/
+
+// +++++++++++++++ TODO +++++++++++++++ 
+// deactivate comments
+
+// static uint32_t lora_navigation_lorawan_callback(void* _context) {
+//     UNUSED(_context);
+//     return LoRaViewLoRaWAN;
+// }
+
+/**
  * @brief      Handle submenu item selection.
  * @details    This function is called when user selects an item from the submenu.
  * @param      context  The context - LoRaApp object.
@@ -208,6 +225,9 @@ static void lora_submenu_callback(void* context, uint32_t index) {
     case LoRaSubmenuIndexConfigure:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewConfigure);
         break;
+    case LoRaSubmenuIndexLoRaWAN:
+        view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewLoRaWAN);
+        break;    
     case LoRaSubmenuIndexSniffer:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewSniffer);
         break;
@@ -1008,6 +1028,8 @@ static LoRaApp* lora_app_alloc() {
     submenu_add_item(
         app->submenu, "Config", LoRaSubmenuIndexConfigure, lora_submenu_callback, app);
     submenu_add_item(
+        app->submenu, "LoRaWAN", LoRaSubmenuIndexLoRaWAN, lora_submenu_callback, app);    
+    submenu_add_item(
         app->submenu, "Sniffer", LoRaSubmenuIndexSniffer, lora_submenu_callback, app);
     submenu_add_item(
         app->submenu, "Transmitter", LoRaSubmenuIndexTransmitter, lora_submenu_callback, app);
@@ -1045,6 +1067,9 @@ static LoRaApp* lora_app_alloc() {
 
     app->variable_item_list_config = variable_item_list_alloc();
     variable_item_list_reset(app->variable_item_list_config);
+
+    app->variable_item_list_lorawan = variable_item_list_alloc();
+    variable_item_list_reset(app->variable_item_list_lorawan);
 
 
     FuriString* config_freq_name = furi_string_alloc();
@@ -1233,6 +1258,8 @@ static void lora_app_free(LoRaApp* app) {
     view_free(app->view_transmitter);
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewConfigure);
     variable_item_list_free(app->variable_item_list_config);
+    view_dispatcher_remove_view(app->view_dispatcher, LoRaViewLoRaWAN);
+    variable_item_list_free(app->variable_item_list_lorawan);
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewSubmenu);
     submenu_free(app->submenu);
     view_dispatcher_free(app->view_dispatcher);
