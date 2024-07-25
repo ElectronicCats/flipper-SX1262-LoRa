@@ -129,7 +129,9 @@ typedef struct {
     uint32_t config_iq_index; // Spread Factor setting index
 
     uint32_t config_region_index; // Frequency plan setting index
-
+    uint32_t config_dr_index; // US915 Data Rate setting index
+    uint32_t config_eu_dr_index; // EU868 Data Rate setting index
+    
     uint8_t x; // The x coordinate
 
     bool flag_file;
@@ -339,17 +341,38 @@ const uint8_t config_dr_values[] = {
     0x0D  // DR13
 };
 const char* const config_dr_names[] = {
-    "DR0 (SF10/125kHz)",
-    "DR1 (SF9/125kHz)",
-    "DR2 (SF8/125kHz)",
-    "DR3 (SF7/125kHz)",
-    "DR4 (SF8/500kHz)",
-    "DR8 (SF12/500kHz)",
-    "DR9 (SF11/500kHz)",
-    "DR10 (SF10/500kHz)",
-    "DR11 (SF9/500kHz)",
-    "DR12 (SF8/500kHz)",
-    "DR13 (SF7/500kHz)"
+    "SF10/125kHz",
+    "SF9/125kHz",
+    "SF8/125kHz",
+    "SF7/125kHz",
+    "SF8/500kHz",
+    "SF12/500kHz",
+    "SF11/500kHz",
+    "SF10/500kHz",
+    "SF9/500kHz",
+    "SF8/500kHz",
+    "SF7/500kHz"
+};
+
+// Data Rate configuration for EU868
+const uint8_t config_eu_dr_values[] = {
+    0x00,
+    0x01,
+    0x02,
+    0x03,
+    0x04,
+    0x05,
+    0x06
+};
+
+const char* const config_eu_dr_names[] = {
+    "SF12/125kHz",
+    "SF11/125kHz",
+    "SF10/125kHz",
+    "SF9/125kHz",
+    "SF8/125kHz",
+    "SF7/125kHz",
+    "SF7/250kHz"
 };
 
 // Transmit Power configuration for US915
@@ -507,15 +530,68 @@ static void lora_config_iq_change(VariableItem* item) {
 
 }
 
+static const char* config_eu_dr_label = "EU868 Data Rate";
+
+static void lora_config_eu_dr_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_eu_dr_names[index]);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_eu_dr_index = index;
+
+    //configSetSpreadingFactor(config_sf_values[index]);
+}
+
+static const char* config_dr_label = "US915 Data Rate";
+
+static void lora_config_dr_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_dr_names[index]);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_dr_index = index;
+
+    //configSetSpreadingFactor(config_sf_values[index]);
+}
+
 static const char* config_region_label = "Frequency Plan";
 
 static void lora_config_region_change(VariableItem* item) {
+    VariableItem* dr_item;
     LoRaApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, config_region_names[index]);
 
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_region_index = index;
+
+    if(index == 0) {
+
+    dr_item = variable_item_list_add(
+        app->variable_item_list_lorawan,
+        config_eu_dr_label,
+        COUNT_OF(config_eu_dr_values),
+        lora_config_eu_dr_change,
+        app);
+    uint8_t config_eu_dr_index = 0;
+    variable_item_set_current_value_index(dr_item, config_eu_dr_index);
+    variable_item_set_current_value_text(dr_item, config_eu_dr_names[config_eu_dr_index]);
+
+    } else if(index == 1) {
+
+    dr_item = variable_item_list_add(
+        app->variable_item_list_lorawan,
+        config_dr_label,
+        COUNT_OF(config_dr_values),
+        lora_config_dr_change,
+        app);
+    uint8_t config_dr_index = 0;
+    variable_item_set_current_value_index(dr_item, config_dr_index);
+    variable_item_set_current_value_text(dr_item, config_dr_names[config_dr_index]);
+
+    }
 
     //configSetSpreadingFactor(config_sf_values[index]);
 }
@@ -1278,6 +1354,17 @@ static LoRaApp* lora_app_alloc() {
     uint8_t config_region_index = 0;
     variable_item_set_current_value_index(item, config_region_index);
     variable_item_set_current_value_text(item, config_region_names[config_region_index]);
+
+    // Data Rate
+    item = variable_item_list_add(
+        app->variable_item_list_lorawan,
+        config_dr_label,
+        COUNT_OF(config_dr_values),
+        lora_config_dr_change,
+        app);
+    uint8_t config_dr_index = 0;
+    variable_item_set_current_value_index(item, config_dr_index);
+    variable_item_set_current_value_text(item, config_dr_names[config_dr_index]);
 
     variable_item_list_set_enter_callback(
         app->variable_item_list_config, lora_setting_item_clicked, app);
