@@ -91,11 +91,10 @@ typedef struct {
     Submenu* submenu; // The application menu
     TextInput* frequency_input; // The text input screen
     ByteInput* byte_input; // The byte input screen
-    //ByteInput* payload_len_input; // The payload length input screen
+
     VariableItemList* variable_item_list_config; // The configuration screen
     VariableItemList* variable_item_list_lorawan; // The lorawan presets screen
 
-    View* view_lorawan; // LoRaWAN presets
     View* view_sniffer; // The main screen
     View* view_transmitter; // The other main screen
     Widget* widget_about; // The about screen
@@ -129,6 +128,8 @@ typedef struct {
     uint32_t config_crc_index; // Spread Factor setting index
     uint32_t config_iq_index; // Spread Factor setting index
 
+    uint32_t config_region_index; // Frequency plan setting index
+
     uint8_t x; // The x coordinate
 
     bool flag_file;
@@ -150,11 +151,8 @@ typedef struct {
 
 
 void makePaths(void* context) {
-
     LoRaApp* app = (LoRaApp*)context;
-
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
-
     furi_assert(app);
     if(!storage_simply_mkdir(model->storage_rx, PATHAPPEXT)) {
         dialog_message_show_storage_error(model->dialogs_rx, "Cannot create\napp folder");
@@ -293,6 +291,39 @@ const char* const config_sf_names[] = {
     "SF12",
 };
 
+const uint8_t config_region_values[] = {
+    0x01,
+    0x02,
+    0x03,
+    0x04,
+    0x05,
+    0x06,
+    0x07,
+    0x08,
+    0x09,
+    0x0A,
+    0x0B,
+    0x0C,
+    0x0D
+};
+
+// Regional names
+const char* const config_region_names[] = {
+    "EU868",
+    "US915",
+    "CN779",
+    "EU433",
+    "AU915",
+    "CN470",
+    "AS923",
+    "AS923-2",
+    "AS923-3",
+    "KR920",
+    "IN865",
+    "RU864",
+    "AS923-4"
+};
+
 // Data Rate configuration for US915
 const uint8_t config_dr_values[] = {
     0x00, // DR0
@@ -403,7 +434,7 @@ const char* const config_iq_names[] = {
     "Inverted",
 };
 
-static const char* config_bw_config_label = "Bandwidth";
+static const char* config_bw_label = "Bandwidth";
 
 static void lora_config_bw_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -416,7 +447,7 @@ static void lora_config_bw_change(VariableItem* item) {
 
 }
 
-static const char* config_sf_config_label = "Spread Factor";
+static const char* config_sf_label = "Spread Factor";
 
 static void lora_config_sf_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -428,7 +459,7 @@ static void lora_config_sf_change(VariableItem* item) {
     configSetSpreadingFactor(config_sf_values[index]);
 }
 
-static const char* config_header_type_config_label = "Header Type";
+static const char* config_header_type_label = "Header Type";
 
 static void lora_config_header_type_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -444,7 +475,7 @@ static void lora_config_header_type_change(VariableItem* item) {
 
 }
 
-static const char* config_crc_config_label = "CRC";
+static const char* config_crc_label = "CRC";
 
 static void lora_config_crc_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -460,7 +491,7 @@ static void lora_config_crc_change(VariableItem* item) {
 
 }
 
-static const char* config_iq_config_label = "IQ";
+static const char* config_iq_label = "IQ";
 
 static void lora_config_iq_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -474,6 +505,19 @@ static void lora_config_iq_change(VariableItem* item) {
     // Order is preamble, header type, packet length, CRC, IQ
     setPacketParams(app->packetPreamble, app->packetHeaderType, app->packetPayloadLength, app->packetCRC, app->packetInvertIQ);
 
+}
+
+static const char* config_region_label = "Frequency Plan";
+
+static void lora_config_region_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_region_names[index]);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_region_index = index;
+
+    //configSetSpreadingFactor(config_sf_values[index]);
 }
 
 /**
@@ -647,9 +691,12 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
         canvas_draw_str(canvas, 60, 20, furi_string_get_cstr(xstr));
     }
 
+    receiveBuff[17] = '.';
+    receiveBuff[18] = '.';
+    receiveBuff[19] = '.';
+    receiveBuff[20] = '\0';
+
     canvas_draw_str(canvas, 1, 10, (const char*)receiveBuff);
-
-
 
     furi_string_printf(xstr, "RSSI: %d  ", getRSSI());
     canvas_draw_str(canvas, 1, 19, furi_string_get_cstr(xstr));
@@ -657,16 +704,15 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
     // furi_string_printf(xstr, "x: %u  OK=play tone", my_model->x);
     // canvas_draw_str(canvas, 44, 24, furi_string_get_cstr(xstr));
 
-    //  furi_string_printf(xstr, "%u", (uint8_t)(furi_hal_random_get() % 256));
-    //  canvas_draw_str(canvas, 60, 20, furi_string_get_cstr(xstr));
+    // furi_string_printf(xstr, "%u", (uint8_t)(furi_hal_random_get() % 256));
+    // canvas_draw_str(canvas, 60, 20, furi_string_get_cstr(xstr));
 
-    furi_string_printf(
-        xstr,
-        "BW:%s",
-        config_bw_names[my_model->config_bw_index]);
+    furi_string_printf(xstr,"BW:%s",config_bw_names[my_model->config_bw_index]);
     canvas_draw_str(canvas, 1, 28, furi_string_get_cstr(xstr));
+
     furi_string_printf(xstr, "FQ:%s MHz", furi_string_get_cstr(my_model->config_freq_name));
     canvas_draw_str(canvas, 60, 28, furi_string_get_cstr(xstr));
+
     furi_string_free(xstr);
 }
 
@@ -1164,7 +1210,7 @@ static LoRaApp* lora_app_alloc() {
     // bw
     item = variable_item_list_add(
         app->variable_item_list_config,
-        config_bw_config_label,
+        config_bw_label,
         COUNT_OF(config_bw_values),
         lora_config_bw_change,
         app);
@@ -1175,7 +1221,7 @@ static LoRaApp* lora_app_alloc() {
     // sf
     item = variable_item_list_add(
         app->variable_item_list_config,
-        config_sf_config_label,
+        config_sf_label,
         COUNT_OF(config_sf_values),
         lora_config_sf_change,
         app);
@@ -1192,7 +1238,7 @@ static LoRaApp* lora_app_alloc() {
     // Header Type
     item = variable_item_list_add(
         app->variable_item_list_config,
-        config_header_type_config_label,
+        config_header_type_label,
         COUNT_OF(config_header_type_values),
         lora_config_header_type_change,
         app);
@@ -1203,7 +1249,7 @@ static LoRaApp* lora_app_alloc() {
     // CRC
     item = variable_item_list_add(
         app->variable_item_list_config,
-        config_crc_config_label,
+        config_crc_label,
         COUNT_OF(config_crc_values),
         lora_config_crc_change,
         app);
@@ -1214,7 +1260,7 @@ static LoRaApp* lora_app_alloc() {
     // Inverted IQ
     item = variable_item_list_add(
         app->variable_item_list_config,
-        config_iq_config_label,
+        config_iq_label,
         COUNT_OF(config_iq_values),
         lora_config_iq_change,
         app);
@@ -1222,16 +1268,37 @@ static LoRaApp* lora_app_alloc() {
     variable_item_set_current_value_index(item, config_iq_index);
     variable_item_set_current_value_text(item, config_iq_names[config_iq_index]);
 
+    // Frequency Plan
+    item = variable_item_list_add(
+        app->variable_item_list_lorawan,
+        config_region_label,
+        COUNT_OF(config_region_values),
+        lora_config_region_change,
+        app);
+    uint8_t config_region_index = 0;
+    variable_item_set_current_value_index(item, config_region_index);
+    variable_item_set_current_value_text(item, config_region_names[config_region_index]);
+
     variable_item_list_set_enter_callback(
         app->variable_item_list_config, lora_setting_item_clicked, app);
 
     view_set_previous_callback(
         variable_item_list_get_view(app->variable_item_list_config),
         lora_navigation_submenu_callback);
+
+    view_set_previous_callback(
+        variable_item_list_get_view(app->variable_item_list_lorawan),
+        lora_navigation_submenu_callback);
+
     view_dispatcher_add_view(
         app->view_dispatcher,
         LoRaViewConfigure,
         variable_item_list_get_view(app->variable_item_list_config));
+
+    view_dispatcher_add_view(
+        app->view_dispatcher,
+        LoRaViewLoRaWAN,
+        variable_item_list_get_view(app->variable_item_list_lorawan));    
 
     app->view_sniffer = view_alloc();
     view_set_draw_callback(app->view_sniffer, lora_view_sniffer_draw_callback);
