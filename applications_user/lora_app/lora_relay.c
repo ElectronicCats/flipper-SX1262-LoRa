@@ -51,6 +51,7 @@ int lora_receive_async(u_int8_t* buff, int buffMaxLen);
 bool configSetFrequency(long frequencyInHz);
 bool configSetBandwidth(int bw);
 bool configSetSpreadingFactor(int sf);
+bool configSetCodingRate(int cr);
 void setPacketParams(uint16_t packetParam1, uint8_t packetParam2, uint8_t packetParam3, uint8_t packetParam4, uint8_t packetParam5);
 
 void transmit(uint8_t *data, int dataLen);
@@ -124,12 +125,15 @@ typedef struct {
     FuriString* config_freq_name; // The name setting    
     uint32_t config_bw_index; // Bandwidth setting index
     uint32_t config_sf_index; // Spread Factor setting index
-    uint32_t config_header_type_index; // Spread Factor setting index
-    uint32_t config_crc_index; // Spread Factor setting index
-    uint32_t config_iq_index; // Spread Factor setting index
+    uint32_t config_cr_index; // Coding Rate setting index
+
+    uint32_t config_header_type_index; // Header Type setting index
+    uint32_t config_crc_index; // CRC setting index
+    uint32_t config_iq_index; // IQ setting index
 
     uint32_t config_region_index; // Frequency plan setting index
-    uint32_t config_dr_index; // US915 Data Rate setting index
+    uint32_t config_bw_region_index; // BW region setting index
+    uint32_t config_us_dr_index; // US915 Data Rate setting index
     uint32_t config_eu_dr_index; // EU868 Data Rate setting index
     
     uint8_t x; // The x coordinate
@@ -293,6 +297,21 @@ const char* const config_sf_names[] = {
     "SF12",
 };
 
+// Coding Rate configuration
+const uint8_t config_cr_values[] = {
+    0x01,  // 4/5
+    0x02,  // 4/6
+    0x03,  // 4/7
+    0x04,  // 4/8
+};
+
+const char* const config_cr_names[] = {
+    "4/5",
+    "4/6",
+    "4/7",
+    "4/8",
+};
+
 const uint8_t config_region_values[] = {
     0x01,
     0x02,
@@ -327,7 +346,7 @@ const char* const config_region_names[] = {
 };
 
 // Data Rate configuration for US915
-const uint8_t config_dr_values[] = {
+const uint8_t config_us_dr_values[] = {
     0x00, // DR0
     0x01, // DR1
     0x02, // DR2
@@ -340,7 +359,7 @@ const uint8_t config_dr_values[] = {
     0x0C, // DR12
     0x0D  // DR13
 };
-const char* const config_dr_names[] = {
+const char* const config_us_dr_names[] = {
     "SF10/125kHz",
     "SF9/125kHz",
     "SF8/125kHz",
@@ -403,8 +422,10 @@ const char* const config_txpower_names[] = {
     "10 dBm"
 };
 
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 // Uplink channel frequencies for US915 (125 kHz channels)
-const uint32_t config_ul_channels_125k[] = {
+const uint32_t config_us915_ul_channels_125k[] = {
     902300000, 902500000, 902700000, 902900000, 903100000, 903300000, 903500000, 903700000,
     903900000, 904100000, 904300000, 904500000, 904700000, 904900000, 905100000, 905300000,
     905500000, 905700000, 905900000, 906100000, 906300000, 906500000, 906700000, 906900000,
@@ -416,16 +437,43 @@ const uint32_t config_ul_channels_125k[] = {
 };
 
 // Uplink channel frequencies for US915 (500 kHz channels)
-const uint32_t config_ul_channels_500k[] = {
+const uint32_t config_us915_ul_channels_500k[] = {
     903000000, 904600000, 906200000, 907800000,
     909400000, 911000000, 912600000, 914200000
 };
 
 // Downlink channel frequencies for US915
-const uint32_t config_dl_channels[] = {
+const uint32_t config_us915f_dl_channels[] = {
     923300000, 923900000, 924500000, 925100000,
     925700000, 926300000, 926900000, 927500000
 };
+
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+// Uplink channel frequencies for EU868 (125 kHz default channels)
+const uint32_t config_eu868_ul_channels_125k[] = {
+    868100000, 868300000, 868500000
+};
+
+// Uplink channel frequencies for EU868 (250 kHz channel)
+const uint32_t config_eu868_ul_channels_250k[] = {
+    868300000
+};
+
+// Additional uplink channel frequencies for EU868 (may be used depending on local regulations)
+const uint32_t config_eu868_ul_channels_additional[] = {
+    867100000, 867300000, 867500000, 867700000, 867900000
+};
+
+// Downlink channel frequencies for EU868 (RX1 - same as uplink)
+const uint32_t config_eu868_dl_channels_rx1[] = {
+    868100000, 868300000, 868500000
+};
+
+// Downlink channel frequency for EU868 (RX2 - fixed frequency)
+const uint32_t config_eu868_dl_channel_rx2 = 869525000;
+
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 //Header Type. 0x00 = Variable Len, 0x01 = Fixed Length
 const uint8_t config_header_type_values[] = {
@@ -480,6 +528,18 @@ static void lora_config_sf_change(VariableItem* item) {
     model->config_sf_index = index;
 
     configSetSpreadingFactor(config_sf_values[index]);
+}
+
+static const char* config_cr_label = "Coding Rate";
+
+static void lora_config_cr_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_cr_names[index]);
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_cr_index = index;
+
+    configSetCodingRate(config_cr_values[index]);
 }
 
 static const char* config_header_type_label = "Header Type";
@@ -543,15 +603,15 @@ static void lora_config_eu_dr_change(VariableItem* item) {
     //configSetSpreadingFactor(config_sf_values[index]);
 }
 
-static const char* config_dr_label = "US915 Data Rate";
+static const char* config_us_dr_label = "US915 Data Rate";
 
-static void lora_config_dr_change(VariableItem* item) {
+static void lora_config_us_dr_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
-    variable_item_set_current_value_text(item, config_dr_names[index]);
+    variable_item_set_current_value_text(item, config_us_dr_names[index]);
 
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
-    model->config_dr_index = index;
+    model->config_us_dr_index = index;
 
     //configSetSpreadingFactor(config_sf_values[index]);
 }
@@ -583,13 +643,13 @@ static void lora_config_region_change(VariableItem* item) {
 
     dr_item = variable_item_list_add(
         app->variable_item_list_lorawan,
-        config_dr_label,
-        COUNT_OF(config_dr_values),
-        lora_config_dr_change,
+        config_us_dr_label,
+        COUNT_OF(config_us_dr_values),
+        lora_config_us_dr_change,
         app);
-    uint8_t config_dr_index = 0;
-    variable_item_set_current_value_index(dr_item, config_dr_index);
-    variable_item_set_current_value_text(dr_item, config_dr_names[config_dr_index]);
+    uint8_t config_us_dr_index = 0;
+    variable_item_set_current_value_index(dr_item, config_us_dr_index);
+    variable_item_set_current_value_text(dr_item, config_us_dr_names[config_us_dr_index]);
 
     }
 
@@ -1109,14 +1169,12 @@ void send_data(void* context) {
             size_t bytes_read;
             char c;
 
-            while ((bytes_read = storage_file_read(model->file_tx, &c, 1)) > 0) {
+            while ((bytes_read = storage_file_read(model->file_tx, &c, 1)) > 0 && model->flag_signal) {
                 if (c == '\n' || buffer_index >= 256 - 1) {
                     buffer[buffer_index] = '\0';
 
                     FURI_LOG_E(TAG,"%s\n", buffer);
-                    if(!model->flag_signal){
-                        return;
-                    }
+
                     tx_payload(buffer);
                     buffer_index = 0;
                 } else {
@@ -1305,6 +1363,17 @@ static LoRaApp* lora_app_alloc() {
     variable_item_set_current_value_index(item, config_sf_index);
     variable_item_set_current_value_text(item, config_sf_names[config_sf_index]);
 
+    // cr
+    item = variable_item_list_add(
+        app->variable_item_list_config,
+        config_cr_label,
+        COUNT_OF(config_cr_values),
+        lora_config_cr_change,
+        app);
+    uint8_t config_cr_index = 0;
+    variable_item_set_current_value_index(item, config_cr_index);
+    variable_item_set_current_value_text(item, config_cr_names[config_cr_index]);
+
     // Payload length
     item = variable_item_list_add(
         app->variable_item_list_config, "Payload length", 64, lora_app_config_set_payload_length, app);
@@ -1358,13 +1427,13 @@ static LoRaApp* lora_app_alloc() {
     // Data Rate
     item = variable_item_list_add(
         app->variable_item_list_lorawan,
-        config_dr_label,
-        COUNT_OF(config_dr_values),
-        lora_config_dr_change,
+        config_us_dr_label,
+        COUNT_OF(config_us_dr_values),
+        lora_config_us_dr_change,
         app);
-    uint8_t config_dr_index = 0;
-    variable_item_set_current_value_index(item, config_dr_index);
-    variable_item_set_current_value_text(item, config_dr_names[config_dr_index]);
+    uint8_t config_us_dr_index = 0;
+    variable_item_set_current_value_index(item, config_us_dr_index);
+    variable_item_set_current_value_text(item, config_us_dr_names[config_us_dr_index]);
 
     variable_item_list_set_enter_callback(
         app->variable_item_list_config, lora_setting_item_clicked, app);
@@ -1401,6 +1470,10 @@ static LoRaApp* lora_app_alloc() {
     model_s->config_freq_name = config_freq_name;
     model_s->config_bw_index = config_bw_index;
     model_s->config_sf_index = config_sf_index;
+    model_s->config_cr_index = config_sf_index;
+
+    // TODO: Is OK to put regional parameters here?
+
     model_s->config_header_type_index = config_header_type_index;
     model_s->config_crc_index = config_crc_index;
     model_s->config_iq_index = config_iq_index;
