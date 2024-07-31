@@ -609,10 +609,44 @@ static void lora_config_eu_dr_change(VariableItem* item) {
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_eu_dr_index = index;
 
-    //configSetSpreadingFactor(config_sf_values[index]);
+    switch(index) {
+        case 0:  // SF12/125kHz
+            configSetSpreadingFactor(0xC);
+            configSetBandwidth(0x04);
+            break;
+        case 1:  // SF11/125kHz
+            configSetSpreadingFactor(0x0B);
+            configSetBandwidth(0x04);
+            break;
+        case 2:  // SF10/125kHz
+            configSetSpreadingFactor(0x0A);
+            configSetBandwidth(0x04);
+            break;
+        case 3:  // SF9/125kHz
+            configSetSpreadingFactor(0x09);
+            configSetBandwidth(0x04);
+            break;
+        case 4:  // SF8/125kHz
+            configSetSpreadingFactor(0x08);
+            configSetBandwidth(0x04);
+            break;
+        case 5:  // SF7/125kHz
+            configSetSpreadingFactor(0x07);
+            configSetBandwidth(0x04);
+            break;
+        case 6:  // SF7/250kHz
+            configSetSpreadingFactor(0x07);
+            configSetBandwidth(0x06);
+            break;
+        // default:
+        //     configSetSpreadingFactor(8);
+        //     configSetBandwidth(0x04);
+        //     break;
+    }
+
 }
 
-static const char* config_us_dr_label = "Data Rate";
+static const char* config_us_dr_label = "US915 Data Rate";
 
 static void lora_config_us_dr_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -622,7 +656,56 @@ static void lora_config_us_dr_change(VariableItem* item) {
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_us_dr_index = index;
 
-    //configSetSpreadingFactor(config_sf_values[index]);
+        switch(index) {
+        case 0:  // SF10/125kHz
+            configSetSpreadingFactor(0x0A);
+            configSetBandwidth(0x04);
+            break;
+        case 1:  // SF9/125kHz
+            configSetSpreadingFactor(0x09);
+            configSetBandwidth(0x04);
+            break;
+        case 2:  // SF8/125kHz
+            configSetSpreadingFactor(0x08);
+            configSetBandwidth(0x04);
+            break;
+        case 3:  // SF7/125kHz
+            configSetSpreadingFactor(0x07);
+            configSetBandwidth(0x04);
+            break;
+        case 4:  // SF8/500kHz
+            configSetSpreadingFactor(0x08);
+            configSetBandwidth(0x06);
+            break;
+        case 5:  // SF12/500kHz
+            configSetSpreadingFactor(0x0C);
+            configSetBandwidth(0x06);
+            break;
+        case 6:  // SF11/500kHz
+            configSetSpreadingFactor(0x0B);
+            configSetBandwidth(0x06);
+            break;
+        case 7:  // SF10/500kHz
+            configSetSpreadingFactor(0x0A);
+            configSetBandwidth(0x06);
+            break;
+        case 8:  // SF9/500kHz
+            configSetSpreadingFactor(0x09);
+            configSetBandwidth(0x06);
+            break;
+        case 9:  // SF8/500kHz
+            configSetSpreadingFactor(0x08);
+            configSetBandwidth(0x06);
+            break;
+        case 10:  // SF7/500kHz
+            configSetSpreadingFactor(0x07);
+            configSetBandwidth(0x06);
+            break;
+        default:
+            configSetSpreadingFactor(0x08);
+            configSetBandwidth(0x04);
+            break;
+    }
 }
 
 static const char* config_us915_ul_channels_label = "Uplink Channels";
