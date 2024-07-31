@@ -138,7 +138,7 @@ typedef struct {
 
     uint32_t config_us915_ul_channels_125k_index;
     // uint32_t config_ul_channels_250k;
-    // uint32_t config_ul_channels_500k;
+    uint32_t config_us915_ul_channels_500k_index;
 
     uint32_t config_us915_dl_channels_500k_index;
     // uint32_t config_dl_channels_250k;
@@ -340,17 +340,17 @@ const uint8_t config_region_values[] = {
 const char* const config_region_names[] = {
     "EU868",
     "US915",
-    "CN779",
+    // "CN779",
     "EU433",
-    "AU915",
-    "CN470",
-    "AS923",
-    "AS923-2",
-    "AS923-3",
-    "KR920",
-    "IN865",
-    "RU864",
-    "AS923-4"
+    // "AU915",
+    // "CN470",
+    // "AS923",
+    // "AS923-2",
+    // "AS923-3",
+    // "KR920",
+    // "IN865",
+    // "RU864",
+    // "AS923-4"
 };
 
 // Data Rate configuration for US915
@@ -708,14 +708,11 @@ static void lora_config_us_dr_change(VariableItem* item) {
     }
 }
 
-static const char* config_us915_ul_channels_label = "Uplink Channels";
+static const char* config_us915_ul_channels_125k_label = "Uplink Channels";
 
-static void lora_config_us915_ul_channels_change(VariableItem* item) {
+static void lora_config_us915_ul_channels_125k_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
-
-    //UNUSED(app);
-    //UNUSED(index);
 
     char text_buf[10] = {0};
     snprintf(
@@ -735,23 +732,53 @@ static void lora_config_us915_ul_channels_change(VariableItem* item) {
     configSetFrequency(app->config_frequency);
 }
 
-// static const char* config_dl_channels_label = "Downlink Channels";
+static const char* config_us915_ul_channels_500k_label = "Uplink Channels";
 
-// static void lora_config_dl_channels_change(VariableItem* item) {
-//     LoRaApp* app = variable_item_get_context(item);
-//     uint8_t index = variable_item_get_current_value_index(item);
-//     UNUSED(app);
-//     UNUSED(index);
+static void lora_config_us915_ul_channels_500k_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
 
-//     //if()
-//     // variable_item_set_current_value_text(item, config_us_dr_names[index]);
+    char text_buf[10] = {0};
+    snprintf(
+            text_buf,
+            sizeof(text_buf),
+            "%lu",
+            config_us915_ul_channels_500k[index]);
+    variable_item_set_current_value_text(item, text_buf);
 
-//     // LoRaSnifferModel* model = view_get_model(app->view_sniffer);
-//     // model->config_us_dr_index = index;
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_us915_ul_channels_500k_index = index;
 
-//     //configSetSpreadingFactor(config_sf_values[index]);
-// }
 
+    app->config_frequency = (int)config_us915_ul_channels_500k[index];
+    FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
+
+    configSetFrequency(app->config_frequency);
+}
+
+static const char* config_us915_dl_channels_500k_label = "Uplink Channels";
+
+static void lora_config_us915_dl_channels_500k_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    char text_buf[10] = {0};
+    snprintf(
+            text_buf,
+            sizeof(text_buf),
+            "%lu",
+            config_us915_dl_channels_500k[index]);
+    variable_item_set_current_value_text(item, text_buf);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_us915_dl_channels_500k_index = index;
+
+
+    app->config_frequency = (int)config_us915_dl_channels_500k[index];
+    FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
+
+    configSetFrequency(app->config_frequency);
+}
 
 static const char* config_region_label = "Frequency Plan";
 
@@ -1553,7 +1580,7 @@ static LoRaApp* lora_app_alloc() {
         COUNT_OF(config_region_values),
         lora_config_region_change,
         app);
-    uint8_t config_region_index = 0;
+    uint8_t config_region_index = 1;
     variable_item_set_current_value_index(item, config_region_index);
     variable_item_set_current_value_text(item, config_region_names[config_region_index]);
 
@@ -1568,16 +1595,18 @@ static LoRaApp* lora_app_alloc() {
     variable_item_set_current_value_index(item, config_us_dr_index);
     variable_item_set_current_value_text(item, config_us_dr_names[config_us_dr_index]);
 
-    // Uplink Channel
+    char text_buf[10] = {0};
+
+    // Uplink Channel 125K
     item = variable_item_list_add(
         app->variable_item_list_lorawan,
-        config_us915_ul_channels_label,
+        config_us915_ul_channels_125k_label,
         COUNT_OF(config_us915_ul_channels_125k),
-        lora_config_us915_ul_channels_change,
+        lora_config_us915_ul_channels_125k_change,
         app);
     uint8_t config_us915_ul_channels_125k_index = 0;
     variable_item_set_current_value_index(item, config_us915_ul_channels_125k_index);
-    char text_buf[10] = {0};
+
     snprintf(
             text_buf,
             sizeof(text_buf),
@@ -1585,6 +1614,39 @@ static LoRaApp* lora_app_alloc() {
             config_us915_ul_channels_125k[config_us915_ul_channels_125k_index]);
     variable_item_set_current_value_text(item, text_buf);
 
+    // Uplink Channel 500K
+    item = variable_item_list_add(
+        app->variable_item_list_lorawan,
+        config_us915_ul_channels_500k_label,
+        COUNT_OF(config_us915_ul_channels_500k),
+        lora_config_us915_ul_channels_500k_change,
+        app);
+    uint8_t config_us915_ul_channels_500k_index = 0;
+    variable_item_set_current_value_index(item, config_us915_ul_channels_500k_index);
+
+    snprintf(
+            text_buf,
+            sizeof(text_buf),
+            "%lu",
+            config_us915_ul_channels_500k[config_us915_ul_channels_500k_index]);
+    variable_item_set_current_value_text(item, text_buf);
+
+    // Downlink Channel 500K
+    item = variable_item_list_add(
+        app->variable_item_list_lorawan,
+        config_us915_dl_channels_500k_label,
+        COUNT_OF(config_us915_dl_channels_500k),
+        lora_config_us915_dl_channels_500k_change,
+        app);
+    uint8_t config_us915_dl_channels_500k_index = 0;
+    variable_item_set_current_value_index(item, config_us915_dl_channels_500k_index);
+
+    snprintf(
+            text_buf,
+            sizeof(text_buf),
+            "%lu",
+            config_us915_dl_channels_500k[config_us915_dl_channels_500k_index]);
+    variable_item_set_current_value_text(item, text_buf);
 
 
 
