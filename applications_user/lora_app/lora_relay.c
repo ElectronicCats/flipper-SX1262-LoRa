@@ -139,8 +139,12 @@ typedef struct {
     uint32_t config_us915_ul_channels_125k_index;
     // uint32_t config_ul_channels_250k;
     uint32_t config_us915_ul_channels_500k_index;
+    uint32_t config_eu868_ul_channels_125k_index;
+    uint32_t config_eu868_ul_channels_250k_index;
 
     uint32_t config_us915_dl_channels_500k_index;
+    uint32_t config_eu868_dl_channels_rx1_index;
+    
     // uint32_t config_dl_channels_250k;
     // uint32_t config_dl_channels_500k;
     
@@ -341,7 +345,7 @@ const char* const config_region_names[] = {
     "EU868",
     "US915",
     // "CN779",
-    "EU433",
+    // "EU433",
     // "AU915",
     // "CN470",
     // "AS923",
@@ -480,6 +484,34 @@ const uint32_t config_eu868_dl_channels_rx1[] = {
 
 // Downlink channel frequency for EU868 (RX2 - fixed frequency)
 const uint32_t config_eu868_dl_channel_rx2 = 869525000;
+
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+// Uplink channel frequencies for AS923 (125 kHz default channels)
+const uint32_t config_as923_ul_channels_125k[] = {
+    923200000, 923400000
+};
+
+// Additional uplink channel frequencies for AS923 (may be used depending on local regulations)
+const uint32_t config_as923_ul_channels_additional[] = {
+    923600000, 923800000, 924000000, 924200000, 924400000, 924600000
+};
+
+// Downlink channel frequencies for AS923 (RX1 - same as uplink)
+const uint32_t config_as923_dl_channels_rx1[] = {
+    923200000, 923400000
+};
+
+// Downlink channel frequency for AS923 (RX2 - fixed frequency)
+const uint32_t config_as923_dl_channel_rx2 = 923200000;
+
+// Frequency offsets for different AS923 sub-bands
+const int32_t config_as923_frequency_offsets[] = {
+    0,       // AS923-1
+    -1800000, // AS923-2
+    -6600000, // AS923-3
+    -5900000  // AS923-4
+};
 
 // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -708,7 +740,7 @@ static void lora_config_us_dr_change(VariableItem* item) {
     }
 }
 
-static const char* config_us915_ul_channels_125k_label = "Uplink Channels";
+static const char* config_us915_ul_channels_125k_label = "Uplink 125 kHz";
 
 static void lora_config_us915_ul_channels_125k_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -727,12 +759,15 @@ static void lora_config_us915_ul_channels_125k_change(VariableItem* item) {
 
 
     app->config_frequency = (int)config_us915_ul_channels_125k[index];
+    // setting text for configure frequency
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
     FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
 
     configSetFrequency(app->config_frequency);
 }
 
-static const char* config_us915_ul_channels_500k_label = "Uplink Channels";
+static const char* config_us915_ul_channels_500k_label = "Uplink 500 kHz";
 
 static void lora_config_us915_ul_channels_500k_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -751,12 +786,15 @@ static void lora_config_us915_ul_channels_500k_change(VariableItem* item) {
 
 
     app->config_frequency = (int)config_us915_ul_channels_500k[index];
+    // setting text for configure frequency
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
     FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
 
     configSetFrequency(app->config_frequency);
 }
 
-static const char* config_us915_dl_channels_500k_label = "Uplink Channels";
+static const char* config_us915_dl_channels_500k_label = "Downlink 500 kHz";
 
 static void lora_config_us915_dl_channels_500k_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -773,8 +811,90 @@ static void lora_config_us915_dl_channels_500k_change(VariableItem* item) {
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_us915_dl_channels_500k_index = index;
 
-
     app->config_frequency = (int)config_us915_dl_channels_500k[index];
+    // setting text for configure frequency
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
+    FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
+
+    configSetFrequency(app->config_frequency);
+}
+
+static const char* config_eu868_ul_channels_125k_label = "Uplink 125 kHz";
+
+static void lora_config_eu868_ul_channels_125k_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    char text_buf[10] = {0};
+    snprintf(
+            text_buf,
+            sizeof(text_buf),
+            "%lu",
+            config_eu868_ul_channels_125k[index]);
+    variable_item_set_current_value_text(item, text_buf);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_eu868_ul_channels_125k_index = index;
+
+
+    app->config_frequency = (int)config_eu868_ul_channels_125k[index];
+    // setting text for configure frequency
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
+    FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
+
+    configSetFrequency(app->config_frequency);
+}
+
+static const char* config_eu868_ul_channels_250k_label = "Uplink 250 kHz";
+
+static void lora_config_eu868_ul_channels_250k_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    char text_buf[10] = {0};
+    snprintf(
+            text_buf,
+            sizeof(text_buf),
+            "%lu",
+            config_eu868_ul_channels_250k[index]);
+    variable_item_set_current_value_text(item, text_buf);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_eu868_ul_channels_250k_index = index;
+
+
+    app->config_frequency = (int)config_eu868_ul_channels_250k[index];
+    // setting text for configure frequency
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
+    FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
+
+    configSetFrequency(app->config_frequency);
+}
+
+static const char* config_eu868_dl_channels_rx1_label = "Downlink RX1";
+       
+static void lora_config_eu868_dl_channels_rx1_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    char text_buf[10] = {0};
+    snprintf(
+            text_buf,
+            sizeof(text_buf),
+            "%lu",
+            config_eu868_dl_channels_rx1[index]);
+    variable_item_set_current_value_text(item, text_buf);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_eu868_dl_channels_rx1_index = index;
+
+    app->config_frequency = (int)config_eu868_dl_channels_rx1[index];
+    // setting text for configure frequency
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
     FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
 
     configSetFrequency(app->config_frequency);
@@ -783,7 +903,6 @@ static void lora_config_us915_dl_channels_500k_change(VariableItem* item) {
 static const char* config_region_label = "Frequency Plan";
 
 static void lora_config_region_change(VariableItem* item) {
-    VariableItem* dr_item;
     LoRaApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, config_region_names[index]);
@@ -791,21 +910,137 @@ static void lora_config_region_change(VariableItem* item) {
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_region_index = index;
 
+    variable_item_list_reset(app->variable_item_list_lorawan);
+
+    char text_buf[10] = {0};
+
     if(index == 0) {
 
-    dr_item = variable_item_list_get(app->variable_item_list_lorawan, 1);
-    uint8_t config_eu_dr_index = 0; // TODO: el mas usado
-    variable_item_set_values_count(dr_item, COUNT_OF(config_eu_dr_values));
-    variable_item_set_current_value_index(dr_item, config_eu_dr_index);
-    variable_item_set_current_value_text(dr_item, config_eu_dr_names[config_eu_dr_index]);
+        // EU868 Data Rate
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_eu_dr_label,
+            COUNT_OF(config_eu_dr_values),
+            lora_config_eu_dr_change,
+            app);
+        uint8_t config_eu_dr_index = 0;
+        variable_item_set_current_value_index(item, config_eu_dr_index);
+        variable_item_set_current_value_text(item, config_us_dr_names[config_eu_dr_index]);
+
+        // Uplink EU868 Channel 125K
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_eu868_ul_channels_125k_label,
+            COUNT_OF(config_eu868_ul_channels_125k),
+            lora_config_eu868_ul_channels_125k_change,
+            app);
+        uint8_t config_eu868_ul_channels_125k_index = 0;
+        variable_item_set_current_value_index(item, config_eu868_ul_channels_125k_index);
+
+        snprintf(
+                text_buf,
+                sizeof(text_buf),
+                "%lu",
+                config_eu868_ul_channels_125k[config_eu868_ul_channels_125k_index]);
+        variable_item_set_current_value_text(item, text_buf);
+
+        // Uplink EU868 Channel 250K
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_eu868_ul_channels_250k_label,
+            COUNT_OF(config_eu868_ul_channels_250k),
+            lora_config_eu868_ul_channels_250k_change,
+            app);
+        uint8_t config_eu868_ul_channels_250k_index = 0;
+        variable_item_set_current_value_index(item, config_eu868_ul_channels_250k_index);
+
+        snprintf(
+                text_buf,
+                sizeof(text_buf),
+                "%lu",
+                config_eu868_ul_channels_250k[config_eu868_ul_channels_250k_index]);
+        variable_item_set_current_value_text(item, text_buf);
+
+        // Downlink EU868 Channel RX1
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_eu868_dl_channels_rx1_label,
+            COUNT_OF(config_eu868_dl_channels_rx1),
+            lora_config_eu868_dl_channels_rx1_change,
+            app);
+        uint8_t config_eu868_dl_channels_rx1_index = 0;
+        variable_item_set_current_value_index(item, config_eu868_dl_channels_rx1_index);
+
+        snprintf(
+                text_buf,
+                sizeof(text_buf),
+                "%lu",
+                config_eu868_dl_channels_rx1[config_eu868_dl_channels_rx1_index]);
+        variable_item_set_current_value_text(item, text_buf);
 
     } else if(index == 1) {
 
-    dr_item = variable_item_list_get(app->variable_item_list_lorawan, 1);
-    uint8_t config_us_dr_index = 0;
-    variable_item_set_values_count(dr_item, COUNT_OF(config_us_dr_values));
-    variable_item_set_current_value_index(dr_item, config_us_dr_index);
-    variable_item_set_current_value_text(dr_item, config_us_dr_names[config_us_dr_index]);
+        // US915 Data Rate
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_us_dr_label,
+            COUNT_OF(config_us_dr_values),
+            lora_config_us_dr_change,
+            app);
+        uint8_t config_us_dr_index = 0;
+        variable_item_set_current_value_index(item, config_us_dr_index);
+        variable_item_set_current_value_text(item, config_us_dr_names[config_us_dr_index]);
+
+        // Uplink US915 Channel 125K
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_us915_ul_channels_125k_label,
+            COUNT_OF(config_us915_ul_channels_125k),
+            lora_config_us915_ul_channels_125k_change,
+            app);
+        uint8_t config_us915_ul_channels_125k_index = 0;
+        variable_item_set_current_value_index(item, config_us915_ul_channels_125k_index);
+
+        snprintf(
+                text_buf,
+                sizeof(text_buf),
+                "%lu",
+                config_us915_ul_channels_125k[config_us915_ul_channels_125k_index]);
+        variable_item_set_current_value_text(item, text_buf);
+
+        // Uplink US915 Channel 500K
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_us915_ul_channels_500k_label,
+            COUNT_OF(config_us915_ul_channels_500k),
+            lora_config_us915_ul_channels_500k_change,
+            app);
+        uint8_t config_us915_ul_channels_500k_index = 0;
+        variable_item_set_current_value_index(item, config_us915_ul_channels_500k_index);
+
+        snprintf(
+                text_buf,
+                sizeof(text_buf),
+                "%lu",
+                config_us915_ul_channels_500k[config_us915_ul_channels_500k_index]);
+        variable_item_set_current_value_text(item, text_buf);
+
+        // Downlink US915 Channel 500K
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_us915_dl_channels_500k_label,
+            COUNT_OF(config_us915_dl_channels_500k),
+            lora_config_us915_dl_channels_500k_change,
+            app);
+        uint8_t config_us915_dl_channels_500k_index = 0;
+        variable_item_set_current_value_index(item, config_us915_dl_channels_500k_index);
+
+        snprintf(
+                text_buf,
+                sizeof(text_buf),
+                "%lu",
+                config_us915_dl_channels_500k[config_us915_dl_channels_500k_index]);
+        variable_item_set_current_value_text(item, text_buf);
 
     }
 
@@ -813,9 +1048,8 @@ static void lora_config_region_change(VariableItem* item) {
 }
 
 /**
- * Our 2nd sample setting is a text field.  When the user clicks OK on the configuration 
- * setting we use a text input screen to allow the user to enter a frequency.  This function is
- * called when the user clicks OK on the text input screen.
+ * When the user clicks OK on the configuration frequencysetting we use a text input screen to allow 
+ * the user to enter a frequency.  This function is called when the user clicks OK on the text input screen.
 */
 static const char* config_freq_config_label = "Frequency";
 static const char* config_freq_entry_text = "Enter frequency (MHz)";
@@ -1647,7 +1881,6 @@ static LoRaApp* lora_app_alloc() {
             "%lu",
             config_us915_dl_channels_500k[config_us915_dl_channels_500k_index]);
     variable_item_set_current_value_text(item, text_buf);
-
 
 
     variable_item_list_set_enter_callback(
