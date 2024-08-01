@@ -634,6 +634,7 @@ static void lora_config_iq_change(VariableItem* item) {
 static const char* config_eu_dr_label = "EU868 Data Rate";
 
 static void lora_config_eu_dr_change(VariableItem* item) {
+    VariableItem* alt_item;
     LoRaApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, config_eu_dr_names[index]);
@@ -645,30 +646,122 @@ static void lora_config_eu_dr_change(VariableItem* item) {
         case 0:  // SF12/125kHz
             configSetSpreadingFactor(0xC);
             configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_sf_names[7]);
+            model->config_sf_index = 7;
+
+
             break;
         case 1:  // SF11/125kHz
             configSetSpreadingFactor(0x0B);
             configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 6);
+            variable_item_set_current_value_text(alt_item, config_sf_names[6]);
+            model->config_sf_index = 6;
+
             break;
         case 2:  // SF10/125kHz
             configSetSpreadingFactor(0x0A);
             configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 5);
+            variable_item_set_current_value_text(alt_item, config_sf_names[5]);
+            model->config_sf_index = 5;
+
             break;
         case 3:  // SF9/125kHz
             configSetSpreadingFactor(0x09);
             configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 4);
+            variable_item_set_current_value_text(alt_item, config_sf_names[4]);
+            model->config_sf_index = 4;
+
             break;
         case 4:  // SF8/125kHz
             configSetSpreadingFactor(0x08);
             configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 3);
+            variable_item_set_current_value_text(alt_item, config_sf_names[3]);
+            model->config_sf_index = 3;
+
             break;
         case 5:  // SF7/125kHz
             configSetSpreadingFactor(0x07);
             configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 2);
+            variable_item_set_current_value_text(alt_item, config_sf_names[2]);
+            model->config_sf_index = 2;
+
             break;
         case 6:  // SF7/250kHz
             configSetSpreadingFactor(0x07);
             configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 1);
+            variable_item_set_current_value_text(alt_item, config_sf_names[1]);
+            model->config_sf_index = 1;
+
             break;
         // default:
         //     configSetSpreadingFactor(8);
@@ -681,6 +774,7 @@ static void lora_config_eu_dr_change(VariableItem* item) {
 static const char* config_us_dr_label = "US915 Data Rate";
 
 static void lora_config_us_dr_change(VariableItem* item) {
+    VariableItem* alt_item;
     LoRaApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
     variable_item_set_current_value_text(item, config_us_dr_names[index]);
@@ -692,50 +786,189 @@ static void lora_config_us_dr_change(VariableItem* item) {
         case 0:  // SF10/125kHz
             configSetSpreadingFactor(0x0A);
             configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 5);
+            variable_item_set_current_value_text(alt_item, config_sf_names[5]);
+            model->config_sf_index = 5;
+
             break;
         case 1:  // SF9/125kHz
             configSetSpreadingFactor(0x09);
             configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 4);
+            variable_item_set_current_value_text(alt_item, config_sf_names[4]);
+            model->config_sf_index = 4;
+
             break;
         case 2:  // SF8/125kHz
             configSetSpreadingFactor(0x08);
             configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 3);
+            variable_item_set_current_value_text(alt_item, config_sf_names[3]);
+            model->config_sf_index = 3;
+
             break;
         case 3:  // SF7/125kHz
             configSetSpreadingFactor(0x07);
             configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 2);
+            variable_item_set_current_value_text(alt_item, config_sf_names[2]);
+            model->config_sf_index = 2;
+
             break;
         case 4:  // SF8/500kHz
             configSetSpreadingFactor(0x08);
             configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 3);
+            variable_item_set_current_value_text(alt_item, config_sf_names[3]);
+            model->config_sf_index = 3;
+
             break;
         case 5:  // SF12/500kHz
             configSetSpreadingFactor(0x0C);
             configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_sf_names[7]);
+            model->config_sf_index = 7;
+
             break;
         case 6:  // SF11/500kHz
             configSetSpreadingFactor(0x0B);
             configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 6);
+            variable_item_set_current_value_text(alt_item, config_sf_names[6]);
+            model->config_sf_index = 6;
+
             break;
         case 7:  // SF10/500kHz
             configSetSpreadingFactor(0x0A);
             configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 5);
+            variable_item_set_current_value_text(alt_item, config_sf_names[5]);
+            model->config_sf_index = 5;
+
             break;
         case 8:  // SF9/500kHz
             configSetSpreadingFactor(0x09);
             configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 4);
+            variable_item_set_current_value_text(alt_item, config_sf_names[4]);
+            model->config_sf_index = 4;
+
             break;
         case 9:  // SF8/500kHz
             configSetSpreadingFactor(0x08);
             configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 3);
+            variable_item_set_current_value_text(alt_item, config_sf_names[3]);
+            model->config_sf_index = 3;
+
             break;
         case 10:  // SF7/500kHz
             configSetSpreadingFactor(0x07);
             configSetBandwidth(0x06);
-            break;
-        default:
-            configSetSpreadingFactor(0x08);
-            configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 0);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 0);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 2);
+            variable_item_set_current_value_text(alt_item, config_sf_names[2]);
+            model->config_sf_index = 2;
+
             break;
     }
 }
@@ -760,6 +993,7 @@ static void lora_config_us915_ul_channels_125k_change(VariableItem* item) {
 
     app->config_frequency = (int)config_us915_ul_channels_125k[index];
     // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
     variable_item_set_current_value_text(app->config_freq_item, text_buf);
 
     FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
@@ -787,6 +1021,7 @@ static void lora_config_us915_ul_channels_500k_change(VariableItem* item) {
 
     app->config_frequency = (int)config_us915_ul_channels_500k[index];
     // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
     variable_item_set_current_value_text(app->config_freq_item, text_buf);
 
     FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
@@ -813,6 +1048,7 @@ static void lora_config_us915_dl_channels_500k_change(VariableItem* item) {
 
     app->config_frequency = (int)config_us915_dl_channels_500k[index];
     // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
     variable_item_set_current_value_text(app->config_freq_item, text_buf);
 
     FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
@@ -840,6 +1076,7 @@ static void lora_config_eu868_ul_channels_125k_change(VariableItem* item) {
 
     app->config_frequency = (int)config_eu868_ul_channels_125k[index];
     // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
     variable_item_set_current_value_text(app->config_freq_item, text_buf);
 
     FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
@@ -867,6 +1104,7 @@ static void lora_config_eu868_ul_channels_250k_change(VariableItem* item) {
 
     app->config_frequency = (int)config_eu868_ul_channels_250k[index];
     // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
     variable_item_set_current_value_text(app->config_freq_item, text_buf);
 
     FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
@@ -893,6 +1131,7 @@ static void lora_config_eu868_dl_channels_rx1_change(VariableItem* item) {
 
     app->config_frequency = (int)config_eu868_dl_channels_rx1[index];
     // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
     variable_item_set_current_value_text(app->config_freq_item, text_buf);
 
     FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
@@ -915,6 +1154,17 @@ static void lora_config_region_change(VariableItem* item) {
     char text_buf[10] = {0};
 
     if(index == 0) {
+
+        // Frequency Plan
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_region_label,
+            COUNT_OF(config_region_values),
+            lora_config_region_change,
+            app);
+        uint8_t config_region_index = 1;
+        variable_item_set_current_value_index(item, config_region_index);
+        variable_item_set_current_value_text(item, config_region_names[config_region_index]);
 
         // EU868 Data Rate
         item = variable_item_list_add(
@@ -979,6 +1229,17 @@ static void lora_config_region_change(VariableItem* item) {
         variable_item_set_current_value_text(item, text_buf);
 
     } else if(index == 1) {
+
+        // Frequency Plan
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_region_label,
+            COUNT_OF(config_region_values),
+            lora_config_region_change,
+            app);
+        uint8_t config_region_index = 1;
+        variable_item_set_current_value_index(item, config_region_index);
+        variable_item_set_current_value_text(item, config_region_names[config_region_index]);        
 
         // US915 Data Rate
         item = variable_item_list_add(
