@@ -18,6 +18,7 @@ Requires the [**Electronic Cats Flipper Add-On: Sub-GHz**](https://electroniccat
 ## Features
 
 * Customize the LoRa parameters.
+* Menu for LoRaWAN US915 and EU868
 * Read and display data sniffed from LoRa devices.
    <!-- * Hexadecimal or Normal data output format selector -->
 * Export sniffing sessions in LOG files to the SD card.
