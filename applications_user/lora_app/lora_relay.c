@@ -96,11 +96,11 @@ typedef struct {
     VariableItemList* variable_item_list_config; // The configuration screen
     VariableItemList* variable_item_list_lorawan; // The lorawan presets screen
 
-    View* view_sniffer; // The main screen
-    View* view_transmitter; // The other main screen
+    View* view_sniffer; // The sniffer screen
+    View* view_transmitter; // The transmitter screen
     Widget* widget_about; // The about screen
 
-    VariableItem* config_freq_item; // The name setting item (so we can update the text)
+    VariableItem* config_freq_item; // The frequency setting item (so we can update the frequency)
     char* temp_buffer; // Temporary buffer for text input
     uint32_t temp_buffer_size; // Size of temporary buffer
 
@@ -122,7 +122,7 @@ typedef struct {
 } LoRaApp;
 
 typedef struct {
-    FuriString* config_freq_name; // The name setting    
+    FuriString* config_freq_name; // The frequency setting    
     uint32_t config_bw_index; // Bandwidth setting index
     uint32_t config_sf_index; // Spread Factor setting index
     uint32_t config_cr_index; // Coding Rate setting index
@@ -137,18 +137,14 @@ typedef struct {
     uint32_t config_eu_dr_index; // EU868 Data Rate setting index
 
     uint32_t config_us915_ul_channels_125k_index;
-    // uint32_t config_ul_channels_250k;
     uint32_t config_us915_ul_channels_500k_index;
     uint32_t config_eu868_ul_channels_125k_index;
-    uint32_t config_eu868_ul_channels_250k_index;
 
+    uint32_t config_eu868_ul_channels_250k_index;
     uint32_t config_us915_dl_channels_500k_index;
     uint32_t config_eu868_dl_channels_rx1_index;
     
-    // uint32_t config_dl_channels_250k;
-    // uint32_t config_dl_channels_500k;
-    
-    uint8_t x; // The x coordinate
+    uint8_t x; // The x coordinate (dummy variable)
 
     bool flag_file;
     DialogsApp* dialogs_rx;
@@ -222,7 +218,7 @@ static uint32_t lora_navigation_configure_callback(void* _context) {
 */
 
 // +++++++++++++++ TODO +++++++++++++++ 
-// deactivate comments
+// not used at the moment
 
 // static uint32_t lora_navigation_lorawan_callback(void* _context) {
 //     UNUSED(_context);
@@ -765,10 +761,6 @@ static void lora_config_eu_dr_change(VariableItem* item) {
             model->config_sf_index = 1;
 
             break;
-        // default:
-        //     configSetSpreadingFactor(8);
-        //     configSetBandwidth(0x04);
-        //     break;
     }
 
 }
@@ -1429,13 +1421,7 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
             storage_file_write(my_model->file_rx, "\n", 1);
             
         }
-
-        FURI_LOG_E(TAG,"%s",receiveBuff);  
-        // bytesToAsciiHex(receiveBuff, 16);
-        // asciiBuff[17] = '.';
-        // asciiBuff[18] = '.';
-        // asciiBuff[19] = '.';
-        // asciiBuff[20] = '\0';
+        FURI_LOG_E(TAG,"%s",receiveBuff); 
     }
 
     FuriString* xstr = furi_string_alloc();
@@ -1463,9 +1449,6 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
 
     // furi_string_printf(xstr, "x: %u  OK=play tone", my_model->x);
     // canvas_draw_str(canvas, 44, 24, furi_string_get_cstr(xstr));
-
-    // furi_string_printf(xstr, "%u", (uint8_t)(furi_hal_random_get() % 256));
-    // canvas_draw_str(canvas, 60, 20, furi_string_get_cstr(xstr));
 
     furi_string_printf(xstr,"BW:%s",config_bw_names[my_model->config_bw_index]);
     canvas_draw_str(canvas, 1, 28, furi_string_get_cstr(xstr));
@@ -1704,11 +1687,6 @@ static bool lora_view_sniffer_input_callback(InputEvent* event, void* context) {
                     model->flag_file = !model->flag_file;
 
                     if(model->flag_file) {
-
-                        // if(!storage_simply_mkdir(model->storage_rx, PATHAPPEXT)) {
-                        //     FURI_LOG_E(TAG, "Failed to create directory %s", PATHAPPEXT);
-                        //     return;
-                        // }
                         
                         char filename[256];
                         int file_index = 0;
@@ -2141,8 +2119,6 @@ static LoRaApp* lora_app_alloc() {
     model_s->config_bw_index = config_bw_index;
     model_s->config_sf_index = config_sf_index;
     model_s->config_cr_index = config_sf_index;
-
-    // TODO: Is OK to put regional parameters here?
 
     model_s->config_header_type_index = config_header_type_index;
     model_s->config_crc_index = config_crc_index;
