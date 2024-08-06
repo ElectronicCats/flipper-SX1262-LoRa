@@ -1,7 +1,7 @@
 #pragma once
 
-#include <stdint.h>
 #include <gui/view.h>
+#include <stdint.h>
 
 typedef struct ViewLoRaRX ViewLoRaRX;
 
