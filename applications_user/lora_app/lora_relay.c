@@ -19,7 +19,7 @@
 
 #define PATHAPP "apps_data/lora"
 #define PATHAPPEXT EXT_PATH(PATHAPP)
-#define PATHLORA PATHAPPEXT "/data.log"
+#define PATHLORA PATHAPPEXT "/data_%d.log"
 #define LORA_LOG_FILE_EXTENSION ".log"
 
 #define MAX_LINE_LENGTH 256
@@ -47,10 +47,11 @@ bool begin();
 bool sanityCheck();
 void checkBusy();
 void setModeReceive();
-int lora_receive_async(u_int8_t* buff, int buffMaxLen);
+int lora_receive_async(uint8_t* buff, int buffMaxLen);
 bool configSetFrequency(long frequencyInHz);
 bool configSetBandwidth(int bw);
 bool configSetSpreadingFactor(int sf);
+bool configSetCodingRate(int cr);
 void setPacketParams(uint16_t packetParam1, uint8_t packetParam2, uint8_t packetParam3, uint8_t packetParam4, uint8_t packetParam5);
 
 void transmit(uint8_t *data, int dataLen);
@@ -58,9 +59,10 @@ void transmit(uint8_t *data, int dataLen);
 // Change this to BACKLIGHT_AUTO if you don't want the backlight to be continuously on.
 #define BACKLIGHT_ON 1
 
-// Our application menu has 3 items.  You can add more items if you want.
+// Our application menu has 6 items.  You can add more items if you want.
 typedef enum {
     LoRaSubmenuIndexConfigure,
+    LoRaSubmenuIndexLoRaWAN,
     LoRaSubmenuIndexSniffer,
     LoRaSubmenuIndexTransmitter,
     LoRaSubmenuIndexManualTX,
@@ -71,9 +73,9 @@ typedef enum {
 typedef enum {
     LoRaViewSubmenu, // The menu when the app starts
     LoRaViewFrequencyInput, // Input for configuring frequency settings
-    //LoRaViewPayloadLenInput, // Input for configuring payload length settings
     LoRaViewByteInput, // Input for send data (bytes)
     LoRaViewConfigure, // The configuration screen
+    LoRaViewLoRaWAN, // The presets LoRaWAN screen
     LoRaViewSniffer, // Sniffer
     LoraViewTransmitter, // Transmitter
     LoRaViewAbout, // The about screen with directions, link to social channel, etc.
@@ -90,13 +92,15 @@ typedef struct {
     Submenu* submenu; // The application menu
     TextInput* frequency_input; // The text input screen
     ByteInput* byte_input; // The byte input screen
-    //ByteInput* payload_len_input; // The payload length input screen
+
     VariableItemList* variable_item_list_config; // The configuration screen
-    View* view_sniffer; // The main screen
-    View* view_transmitter; // The other main screen
+    VariableItemList* variable_item_list_lorawan; // The lorawan presets screen
+
+    View* view_sniffer; // The sniffer screen
+    View* view_transmitter; // The transmitter screen
     Widget* widget_about; // The about screen
 
-    VariableItem* config_freq_item; // The name setting item (so we can update the text)
+    VariableItem* config_freq_item; // The frequency setting item (so we can update the frequency)
     char* temp_buffer; // Temporary buffer for text input
     uint32_t temp_buffer_size; // Size of temporary buffer
 
@@ -106,7 +110,7 @@ typedef struct {
     FuriTimer* timer_rx; // Timer for redrawing the sniffer screen
     FuriTimer* timer_tx; // Timer for redrawing the transmitter screen
 
-    int config_frequency;
+    uint32_t config_frequency;
 
     // Order is preamble, header type, packet length, CRC, IQ
     uint16_t packetPreamble;
@@ -118,14 +122,29 @@ typedef struct {
 } LoRaApp;
 
 typedef struct {
-    FuriString* config_freq_name; // The name setting    
+    FuriString* config_freq_name; // The frequency setting    
     uint32_t config_bw_index; // Bandwidth setting index
     uint32_t config_sf_index; // Spread Factor setting index
-    uint32_t config_header_type_index; // Spread Factor setting index
-    uint32_t config_crc_index; // Spread Factor setting index
-    uint32_t config_iq_index; // Spread Factor setting index
+    uint32_t config_cr_index; // Coding Rate setting index
 
-    uint8_t x; // The x coordinate
+    uint32_t config_header_type_index; // Header Type setting index
+    uint32_t config_crc_index; // CRC setting index
+    uint32_t config_iq_index; // IQ setting index
+
+    uint32_t config_region_index; // Frequency plan setting index
+    uint32_t config_bw_region_index; // BW region setting index
+    uint32_t config_us_dr_index; // US915 Data Rate setting index
+    uint32_t config_eu_dr_index; // EU868 Data Rate setting index
+
+    uint32_t config_us915_ul_channels_125k_index;
+    uint32_t config_us915_ul_channels_500k_index;
+    uint32_t config_eu868_ul_channels_125k_index;
+
+    uint32_t config_eu868_ul_channels_250k_index;
+    uint32_t config_us915_dl_channels_500k_index;
+    uint32_t config_eu868_dl_channels_rx1_index;
+    
+    uint8_t x; // The x coordinate (dummy variable)
 
     bool flag_file;
     DialogsApp* dialogs_rx;
@@ -143,6 +162,16 @@ typedef struct {
     File* file_tx;
     uint8_t x; // The x coordinate
 } LoRaTransmitterModel;
+
+
+void makePaths(void* context) {
+    LoRaApp* app = (LoRaApp*)context;
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    furi_assert(app);
+    if(!storage_simply_mkdir(model->storage_rx, PATHAPPEXT)) {
+        dialog_message_show_storage_error(model->dialogs_rx, "Cannot create\napp folder");
+    }
+}
 
 /**
  * @brief      Callback for exiting the application.
@@ -181,6 +210,22 @@ static uint32_t lora_navigation_configure_callback(void* _context) {
 }
 
 /**
+ * @brief      Callback for returning to LoRaWAN screen.
+ * @details    This function is called when user press back button.  We return VIEW_NONE to
+ *            indicate that we want to navigate to the LoRaWAN screen.
+ * @param      _context  The context - unused
+ * @return     next view id
+*/
+
+// +++++++++++++++ TODO +++++++++++++++ 
+// not used at the moment
+
+// static uint32_t lora_navigation_lorawan_callback(void* _context) {
+//     UNUSED(_context);
+//     return LoRaViewLoRaWAN;
+// }
+
+/**
  * @brief      Handle submenu item selection.
  * @details    This function is called when user selects an item from the submenu.
  * @param      context  The context - LoRaApp object.
@@ -192,6 +237,9 @@ static void lora_submenu_callback(void* context, uint32_t index) {
     case LoRaSubmenuIndexConfigure:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewConfigure);
         break;
+    case LoRaSubmenuIndexLoRaWAN:
+        view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewLoRaWAN);
+        break;    
     case LoRaSubmenuIndexSniffer:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewSniffer);
         break;
@@ -209,6 +257,7 @@ static void lora_submenu_callback(void* context, uint32_t index) {
     }
 }
 
+// Bandwidth configuration
 const uint8_t config_bw_values[] = {
     0x00,
     0x08,
@@ -234,6 +283,7 @@ const char* const config_bw_names[] = {
     "500 kHz",
 };
 
+// Spreading Factor configuration
 const uint8_t config_sf_values[] = {
     0x05,
     0x06,
@@ -254,6 +304,214 @@ const char* const config_sf_names[] = {
     "SF11",
     "SF12",
 };
+
+// Coding Rate configuration
+const uint8_t config_cr_values[] = {
+    0x01,  // 4/5
+    0x02,  // 4/6
+    0x03,  // 4/7
+    0x04,  // 4/8
+};
+
+const char* const config_cr_names[] = {
+    "4/5",
+    "4/6",
+    "4/7",
+    "4/8",
+};
+
+const uint8_t config_region_values[] = {
+    0x01,
+    0x02
+    //,
+    // 0x03,
+    // 0x04,
+    // 0x05,
+    // 0x06,
+    // 0x07,
+    // 0x08,
+    // 0x09,
+    // 0x0A,
+    // 0x0B,
+    // 0x0C,
+    // 0x0D
+};
+
+// Regional names
+const char* const config_region_names[] = {
+    "EU868",
+    "US915"
+    //,
+    // "CN779",
+    // "EU433",
+    // "AU915",
+    // "CN470",
+    // "AS923",
+    // "AS923-2",
+    // "AS923-3",
+    // "KR920",
+    // "IN865",
+    // "RU864",
+    // "AS923-4"
+};
+
+// Data Rate configuration for US915
+const uint8_t config_us_dr_values[] = {
+    0x00, // DR0
+    0x01, // DR1
+    0x02, // DR2
+    0x03, // DR3
+    0x04, // DR4
+    0x08, // DR8
+    0x09, // DR9
+    0x0A, // DR10
+    0x0B, // DR11
+    0x0C, // DR12
+    0x0D  // DR13
+};
+const char* const config_us_dr_names[] = {
+    "SF10/125kHz",
+    "SF9/125kHz",
+    "SF8/125kHz",
+    "SF7/125kHz",
+    "SF8/500kHz",
+    "SF12/500kHz",
+    "SF11/500kHz",
+    "SF10/500kHz",
+    "SF9/500kHz",
+    "SF8/500kHz",
+    "SF7/500kHz"
+};
+
+// Data Rate configuration for EU868
+const uint8_t config_eu_dr_values[] = {
+    0x00,
+    0x01,
+    0x02,
+    0x03,
+    0x04,
+    0x05,
+    0x06
+};
+
+const char* const config_eu_dr_names[] = {
+    "SF12/125kHz",
+    "SF11/125kHz",
+    "SF10/125kHz",
+    "SF9/125kHz",
+    "SF8/125kHz",
+    "SF7/125kHz",
+    "SF7/250kHz"
+};
+
+// Transmit Power configuration for US915
+const uint8_t config_txpower_values[] = {
+    0x00, // 30 dBm
+    0x01, // 28 dBm
+    0x02, // 26 dBm
+    0x03, // 24 dBm
+    0x04, // 22 dBm
+    0x05, // 20 dBm
+    0x06, // 18 dBm
+    0x07, // 16 dBm
+    0x08, // 14 dBm
+    0x09, // 12 dBm
+    0x0A  // 10 dBm
+};
+const char* const config_txpower_names[] = {
+    "30 dBm",
+    "28 dBm",
+    "26 dBm",
+    "24 dBm",
+    "22 dBm",
+    "20 dBm",
+    "18 dBm",
+    "16 dBm",
+    "14 dBm",
+    "12 dBm",
+    "10 dBm"
+};
+
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+// Uplink channel frequencies for US915 (125 kHz channels)
+const uint32_t config_us915_ul_channels_125k[] = {
+    902300000, 902500000, 902700000, 902900000, 903100000, 903300000, 903500000, 903700000,
+    903900000, 904100000, 904300000, 904500000, 904700000, 904900000, 905100000, 905300000,
+    905500000, 905700000, 905900000, 906100000, 906300000, 906500000, 906700000, 906900000,
+    907100000, 907300000, 907500000, 907700000, 907900000, 908100000, 908300000, 908500000,
+    908700000, 908900000, 909100000, 909300000, 909500000, 909700000, 909900000, 910100000,
+    910300000, 910500000, 910700000, 910900000, 911100000, 911300000, 911500000, 911700000,
+    911900000, 912100000, 912300000, 912500000, 912700000, 912900000, 913100000, 913300000,
+    913500000, 913700000, 913900000, 914100000, 914300000, 914500000, 914700000, 914900000
+};
+
+// Uplink channel frequencies for US915 (500 kHz channels)
+const uint32_t config_us915_ul_channels_500k[] = {
+    903000000, 904600000, 906200000, 907800000,
+    909400000, 911000000, 912600000, 914200000
+};
+
+// Downlink channel frequencies for US915
+const uint32_t config_us915_dl_channels_500k[] = {
+    923300000, 923900000, 924500000, 925100000,
+    925700000, 926300000, 926900000, 927500000
+};
+
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+// Uplink channel frequencies for EU868 (125 kHz default channels)
+const uint32_t config_eu868_ul_channels_125k[] = {
+    868100000, 868300000, 868500000
+};
+
+// Uplink channel frequencies for EU868 (250 kHz channel)
+const uint32_t config_eu868_ul_channels_250k[] = {
+    868300000
+};
+
+// Additional uplink channel frequencies for EU868 (may be used depending on local regulations)
+const uint32_t config_eu868_ul_channels_additional[] = {
+    867100000, 867300000, 867500000, 867700000, 867900000
+};
+
+// Downlink channel frequencies for EU868 (RX1 - same as uplink)
+const uint32_t config_eu868_dl_channels_rx1[] = {
+    868100000, 868300000, 868500000
+};
+
+// Downlink channel frequency for EU868 (RX2 - fixed frequency)
+const uint32_t config_eu868_dl_channel_rx2 = 869525000;
+
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+// Uplink channel frequencies for AS923 (125 kHz default channels)
+const uint32_t config_as923_ul_channels_125k[] = {
+    923200000, 923400000
+};
+
+// Additional uplink channel frequencies for AS923 (may be used depending on local regulations)
+const uint32_t config_as923_ul_channels_additional[] = {
+    923600000, 923800000, 924000000, 924200000, 924400000, 924600000
+};
+
+// Downlink channel frequencies for AS923 (RX1 - same as uplink)
+const uint32_t config_as923_dl_channels_rx1[] = {
+    923200000, 923400000
+};
+
+// Downlink channel frequency for AS923 (RX2 - fixed frequency)
+const uint32_t config_as923_dl_channel_rx2 = 923200000;
+
+// Frequency offsets for different AS923 sub-bands
+const int32_t config_as923_frequency_offsets[] = {
+    0,       // AS923-1
+    -1800000, // AS923-2
+    -6600000, // AS923-3
+    -5900000  // AS923-4
+};
+
+// +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 //Header Type. 0x00 = Variable Len, 0x01 = Fixed Length
 const uint8_t config_header_type_values[] = {
@@ -285,7 +543,7 @@ const char* const config_iq_names[] = {
     "Inverted",
 };
 
-static const char* config_bw_config_label = "Bandwidth";
+static const char* config_bw_label = "Bandwidth";
 
 static void lora_config_bw_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -298,7 +556,7 @@ static void lora_config_bw_change(VariableItem* item) {
 
 }
 
-static const char* config_sf_config_label = "Spread Factor";
+static const char* config_sf_label = "Spread Factor";
 
 static void lora_config_sf_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -310,7 +568,19 @@ static void lora_config_sf_change(VariableItem* item) {
     configSetSpreadingFactor(config_sf_values[index]);
 }
 
-static const char* config_header_type_config_label = "Header Type";
+static const char* config_cr_label = "Coding Rate";
+
+static void lora_config_cr_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_cr_names[index]);
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_cr_index = index;
+
+    configSetCodingRate(config_cr_values[index]);
+}
+
+static const char* config_header_type_label = "Header Type";
 
 static void lora_config_header_type_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -326,7 +596,7 @@ static void lora_config_header_type_change(VariableItem* item) {
 
 }
 
-static const char* config_crc_config_label = "CRC";
+static const char* config_crc_label = "CRC";
 
 static void lora_config_crc_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
@@ -342,11 +612,12 @@ static void lora_config_crc_change(VariableItem* item) {
 
 }
 
-static const char* config_iq_config_label = "IQ";
+static const char* config_iq_label = "IQ";
 
 static void lora_config_iq_change(VariableItem* item) {
     LoRaApp* app = variable_item_get_context(item);
     uint8_t index = variable_item_get_current_value_index(item);
+
     variable_item_set_current_value_text(item, config_iq_names[index]);
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_iq_index = index;
@@ -358,10 +629,653 @@ static void lora_config_iq_change(VariableItem* item) {
 
 }
 
+static const char* config_eu_dr_label = "EU868 Data Rate";
+
+static void lora_config_eu_dr_change(VariableItem* item) {
+    VariableItem* alt_item;
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_eu_dr_names[index]);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_eu_dr_index = index;
+
+    switch(index) {
+        case 0:  // SF12/125kHz
+            configSetSpreadingFactor(0xC);
+            configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_sf_names[7]);
+            model->config_sf_index = 7;
+
+
+            break;
+        case 1:  // SF11/125kHz
+            configSetSpreadingFactor(0x0B);
+            configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 6);
+            variable_item_set_current_value_text(alt_item, config_sf_names[6]);
+            model->config_sf_index = 6;
+
+            break;
+        case 2:  // SF10/125kHz
+            configSetSpreadingFactor(0x0A);
+            configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 5);
+            variable_item_set_current_value_text(alt_item, config_sf_names[5]);
+            model->config_sf_index = 5;
+
+            break;
+        case 3:  // SF9/125kHz
+            configSetSpreadingFactor(0x09);
+            configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 4);
+            variable_item_set_current_value_text(alt_item, config_sf_names[4]);
+            model->config_sf_index = 4;
+
+            break;
+        case 4:  // SF8/125kHz
+            configSetSpreadingFactor(0x08);
+            configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 3);
+            variable_item_set_current_value_text(alt_item, config_sf_names[3]);
+            model->config_sf_index = 3;
+
+            break;
+        case 5:  // SF7/125kHz
+            configSetSpreadingFactor(0x07);
+            configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 2);
+            variable_item_set_current_value_text(alt_item, config_sf_names[2]);
+            model->config_sf_index = 2;
+
+            break;
+        case 6:  // SF7/250kHz
+            configSetSpreadingFactor(0x07);
+            configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 1);
+            variable_item_set_current_value_text(alt_item, config_sf_names[1]);
+            model->config_sf_index = 1;
+
+            break;
+    }
+
+}
+
+static const char* config_us_dr_label = "US915 Data Rate";
+
+static void lora_config_us_dr_change(VariableItem* item) {
+    VariableItem* alt_item;
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_us_dr_names[index]);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_us_dr_index = index;
+
+        switch(index) {
+        case 0:  // SF10/125kHz
+            configSetSpreadingFactor(0x0A);
+            configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 5);
+            variable_item_set_current_value_text(alt_item, config_sf_names[5]);
+            model->config_sf_index = 5;
+
+            break;
+        case 1:  // SF9/125kHz
+            configSetSpreadingFactor(0x09);
+            configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 4);
+            variable_item_set_current_value_text(alt_item, config_sf_names[4]);
+            model->config_sf_index = 4;
+
+            break;
+        case 2:  // SF8/125kHz
+            configSetSpreadingFactor(0x08);
+            configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 3);
+            variable_item_set_current_value_text(alt_item, config_sf_names[3]);
+            model->config_sf_index = 3;
+
+            break;
+        case 3:  // SF7/125kHz
+            configSetSpreadingFactor(0x07);
+            configSetBandwidth(0x04);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_bw_names[7]);
+            model->config_bw_index = 7;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 2);
+            variable_item_set_current_value_text(alt_item, config_sf_names[2]);
+            model->config_sf_index = 2;
+
+            break;
+        case 4:  // SF8/500kHz
+            configSetSpreadingFactor(0x08);
+            configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 3);
+            variable_item_set_current_value_text(alt_item, config_sf_names[3]);
+            model->config_sf_index = 3;
+
+            break;
+        case 5:  // SF12/500kHz
+            configSetSpreadingFactor(0x0C);
+            configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 7);
+            variable_item_set_current_value_text(alt_item, config_sf_names[7]);
+            model->config_sf_index = 7;
+
+            break;
+        case 6:  // SF11/500kHz
+            configSetSpreadingFactor(0x0B);
+            configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 6);
+            variable_item_set_current_value_text(alt_item, config_sf_names[6]);
+            model->config_sf_index = 6;
+
+            break;
+        case 7:  // SF10/500kHz
+            configSetSpreadingFactor(0x0A);
+            configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 5);
+            variable_item_set_current_value_text(alt_item, config_sf_names[5]);
+            model->config_sf_index = 5;
+
+            break;
+        case 8:  // SF9/500kHz
+            configSetSpreadingFactor(0x09);
+            configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 4);
+            variable_item_set_current_value_text(alt_item, config_sf_names[4]);
+            model->config_sf_index = 4;
+
+            break;
+        case 9:  // SF8/500kHz
+            configSetSpreadingFactor(0x08);
+            configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 3);
+            variable_item_set_current_value_text(alt_item, config_sf_names[3]);
+            model->config_sf_index = 3;
+
+            break;
+        case 10:  // SF7/500kHz
+            configSetSpreadingFactor(0x07);
+            configSetBandwidth(0x06);
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 1);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 1);
+            variable_item_set_current_value_index(alt_item, 9);
+            variable_item_set_current_value_text(alt_item, config_bw_names[9]);
+            model->config_bw_index = 9;
+
+            alt_item = variable_item_list_get(app->variable_item_list_config, 2);
+            variable_item_list_set_selected_item(app->variable_item_list_config, 2);
+            variable_item_set_current_value_index(alt_item, 2);
+            variable_item_set_current_value_text(alt_item, config_sf_names[2]);
+            model->config_sf_index = 2;
+
+            break;
+    }
+}
+
+static const char* config_us915_ul_channels_125k_label = "Uplink 125 kHz";
+
+static void lora_config_us915_ul_channels_125k_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    char text_buf[11] = {0};
+    snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_us915_ul_channels_125k[index] / 1000000, (config_us915_ul_channels_125k[index] % 1000000) / 100000);
+    variable_item_set_current_value_text(item, text_buf);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_us915_ul_channels_125k_index = index;
+
+
+    app->config_frequency = (int)config_us915_ul_channels_125k[index];
+    // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
+    FURI_LOG_E(TAG,"Frequency = %lu", app->config_frequency);
+
+    configSetFrequency(app->config_frequency);
+}
+
+static const char* config_us915_ul_channels_500k_label = "Uplink 500 kHz";
+
+static void lora_config_us915_ul_channels_500k_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    char text_buf[11] = {0};
+    snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_us915_ul_channels_500k[index] / 1000000, (config_us915_ul_channels_500k[index] % 1000000) / 100000);
+    variable_item_set_current_value_text(item, text_buf);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_us915_ul_channels_500k_index = index;
+
+
+    app->config_frequency = (int)config_us915_ul_channels_500k[index];
+    // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
+    FURI_LOG_E(TAG,"Frequency = %lu", app->config_frequency);
+
+    configSetFrequency(app->config_frequency);
+}
+
+static const char* config_us915_dl_channels_500k_label = "Downlink 500 kHz";
+
+static void lora_config_us915_dl_channels_500k_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    char text_buf[11] = {0};
+    snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_us915_dl_channels_500k[index] / 1000000, (config_us915_dl_channels_500k[index] % 1000000) / 100000);
+    variable_item_set_current_value_text(item, text_buf);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_us915_dl_channels_500k_index = index;
+
+    app->config_frequency = (int)config_us915_dl_channels_500k[index];
+    // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
+    FURI_LOG_E(TAG,"Frequency = %lu", app->config_frequency);
+
+    configSetFrequency(app->config_frequency);
+}
+
+static const char* config_eu868_ul_channels_125k_label = "Uplink 125 kHz";
+
+static void lora_config_eu868_ul_channels_125k_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    char text_buf[11] = {0};
+    snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_eu868_ul_channels_125k[index] / 1000000, (config_eu868_ul_channels_125k[index] % 1000000) / 100000);
+    variable_item_set_current_value_text(item, text_buf);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_eu868_ul_channels_125k_index = index;
+
+
+    app->config_frequency = (int)config_eu868_ul_channels_125k[index];
+    // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
+    FURI_LOG_E(TAG,"Frequency = %lu", app->config_frequency);
+
+    configSetFrequency(app->config_frequency);
+}
+
+static const char* config_eu868_ul_channels_250k_label = "Uplink 250 kHz";
+
+static void lora_config_eu868_ul_channels_250k_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    char text_buf[11] = {0};
+    snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_eu868_ul_channels_250k[index] / 1000000, (config_eu868_ul_channels_250k[index] % 1000000) / 100000);
+    variable_item_set_current_value_text(item, text_buf);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_eu868_ul_channels_250k_index = index;
+
+
+    app->config_frequency = (int)config_eu868_ul_channels_250k[index];
+    // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
+    FURI_LOG_E(TAG,"Frequency = %lu", app->config_frequency);
+
+    configSetFrequency(app->config_frequency);
+}
+
+static const char* config_eu868_dl_channels_rx1_label = "Downlink RX1";
+       
+static void lora_config_eu868_dl_channels_rx1_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+
+    char text_buf[11] = {0};
+    snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_eu868_dl_channels_rx1[index] / 1000000, (config_eu868_dl_channels_rx1[index] % 1000000) / 100000);
+    variable_item_set_current_value_text(item, text_buf);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_eu868_dl_channels_rx1_index = index;
+
+    app->config_frequency = (int)config_eu868_dl_channels_rx1[index];
+    // setting text for configure frequency
+    furi_string_set(model->config_freq_name, text_buf);
+    variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
+    FURI_LOG_E(TAG,"Frequency = %lu", app->config_frequency);
+
+    configSetFrequency(app->config_frequency);
+}
+
+static const char* config_region_label = "Frequency Plan";
+
+static void lora_config_region_change(VariableItem* item) {
+    LoRaApp* app = variable_item_get_context(item);
+    uint8_t index = variable_item_get_current_value_index(item);
+    variable_item_set_current_value_text(item, config_region_names[index]);
+
+    LoRaSnifferModel* model = view_get_model(app->view_sniffer);
+    model->config_region_index = index;
+
+    variable_item_list_reset(app->variable_item_list_lorawan);
+
+    char text_buf[11] = {0};
+
+    if(index == 0) {
+
+        app->config_frequency = 868100000;
+        // setting text for configure frequency
+        snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", app->config_frequency / 1000000, (app->config_frequency % 1000000) / 100000);
+        variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
+        FURI_LOG_E(TAG,"Frequency = %lu", app->config_frequency);
+
+        configSetFrequency(app->config_frequency);
+
+
+        // Frequency Plan
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_region_label,
+            COUNT_OF(config_region_values),
+            lora_config_region_change,
+            app);
+        uint8_t config_region_index = 0;
+        variable_item_set_current_value_index(item, config_region_index);
+        variable_item_set_current_value_text(item, config_region_names[config_region_index]);
+
+        // EU868 Data Rate
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_eu_dr_label,
+            COUNT_OF(config_eu_dr_values),
+            lora_config_eu_dr_change,
+            app);
+        uint8_t config_eu_dr_index = 0;
+        variable_item_set_current_value_index(item, config_eu_dr_index);
+        variable_item_set_current_value_text(item, config_us_dr_names[config_eu_dr_index]);
+
+        // Uplink EU868 Channel 125K
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_eu868_ul_channels_125k_label,
+            COUNT_OF(config_eu868_ul_channels_125k),
+            lora_config_eu868_ul_channels_125k_change,
+            app);
+        uint8_t config_eu868_ul_channels_125k_index = 0;
+        variable_item_set_current_value_index(item, config_eu868_ul_channels_125k_index);
+
+        snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_eu868_ul_channels_125k[index] / 1000000, (config_eu868_ul_channels_125k[index] % 1000000) / 100000);
+        variable_item_set_current_value_text(item, text_buf);
+
+        // Uplink EU868 Channel 250K
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_eu868_ul_channels_250k_label,
+            COUNT_OF(config_eu868_ul_channels_250k),
+            lora_config_eu868_ul_channels_250k_change,
+            app);
+        uint8_t config_eu868_ul_channels_250k_index = 0;
+        variable_item_set_current_value_index(item, config_eu868_ul_channels_250k_index);
+
+        snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_eu868_ul_channels_250k[index] / 1000000, (config_eu868_ul_channels_250k[index] % 1000000) / 100000);
+        variable_item_set_current_value_text(item, text_buf);
+
+        // Downlink EU868 Channel RX1
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_eu868_dl_channels_rx1_label,
+            COUNT_OF(config_eu868_dl_channels_rx1),
+            lora_config_eu868_dl_channels_rx1_change,
+            app);
+        uint8_t config_eu868_dl_channels_rx1_index = 0;
+        variable_item_set_current_value_index(item, config_eu868_dl_channels_rx1_index);
+
+        snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_eu868_dl_channels_rx1[index] / 1000000, (config_eu868_dl_channels_rx1[index] % 1000000) / 100000);
+        variable_item_set_current_value_text(item, text_buf);
+
+    } else if(index == 1) {
+
+        app->config_frequency = 902300000; //first channel
+        // setting text for configure frequency
+        snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", app->config_frequency / 1000000, (app->config_frequency % 1000000) / 100000);
+        variable_item_set_current_value_text(app->config_freq_item, text_buf);
+
+        FURI_LOG_E(TAG,"Frequency = %lu", app->config_frequency);
+
+        configSetFrequency(app->config_frequency);
+
+        // Frequency Plan
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_region_label,
+            COUNT_OF(config_region_values),
+            lora_config_region_change,
+            app);
+        uint8_t config_region_index = 1;
+        variable_item_set_current_value_index(item, config_region_index);
+        variable_item_set_current_value_text(item, config_region_names[config_region_index]);        
+
+        // US915 Data Rate
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_us_dr_label,
+            COUNT_OF(config_us_dr_values),
+            lora_config_us_dr_change,
+            app);
+        uint8_t config_us_dr_index = 0;
+        variable_item_set_current_value_index(item, config_us_dr_index);
+        variable_item_set_current_value_text(item, config_us_dr_names[config_us_dr_index]);
+
+        // Uplink US915 Channel 125K
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_us915_ul_channels_125k_label,
+            COUNT_OF(config_us915_ul_channels_125k),
+            lora_config_us915_ul_channels_125k_change,
+            app);
+        uint8_t config_us915_ul_channels_125k_index = 0;
+        variable_item_set_current_value_index(item, config_us915_ul_channels_125k_index);
+
+        snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_us915_ul_channels_125k[index] / 1000000, (config_us915_ul_channels_125k[index] % 1000000) / 100000);
+        variable_item_set_current_value_text(item, text_buf);
+
+        // Uplink US915 Channel 500K
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_us915_ul_channels_500k_label,
+            COUNT_OF(config_us915_ul_channels_500k),
+            lora_config_us915_ul_channels_500k_change,
+            app);
+        uint8_t config_us915_ul_channels_500k_index = 0;
+        variable_item_set_current_value_index(item, config_us915_ul_channels_500k_index);
+
+        snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_us915_ul_channels_500k[index] / 1000000, (config_us915_ul_channels_500k[index] % 1000000) / 100000);
+        variable_item_set_current_value_text(item, text_buf);
+
+        // Downlink US915 Channel 500K
+        item = variable_item_list_add(
+            app->variable_item_list_lorawan,
+            config_us915_dl_channels_500k_label,
+            COUNT_OF(config_us915_dl_channels_500k),
+            lora_config_us915_dl_channels_500k_change,
+            app);
+        uint8_t config_us915_dl_channels_500k_index = 0;
+        variable_item_set_current_value_index(item, config_us915_dl_channels_500k_index);
+
+        snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_us915_dl_channels_500k[index] / 1000000, (config_us915_dl_channels_500k[index] % 1000000) / 100000);
+        variable_item_set_current_value_text(item, text_buf);
+
+    }
+
+    //configSetSpreadingFactor(config_sf_values[index]);
+}
+
 /**
- * Our 2nd sample setting is a text field.  When the user clicks OK on the configuration 
- * setting we use a text input screen to allow the user to enter a frequency.  This function is
- * called when the user clicks OK on the text input screen.
+ * When the user clicks OK on the configuration frequencysetting we use a text input screen to allow 
+ * the user to enter a frequency.  This function is called when the user clicks OK on the text input screen.
 */
 static const char* config_freq_config_label = "Frequency";
 static const char* config_freq_entry_text = "Enter frequency (MHz)";
@@ -379,7 +1293,7 @@ static void lora_config_freq_text_updated(void* context) {
 
             const char* freq_str = furi_string_get_cstr(model->config_freq_name);
             app->config_frequency = (int)(strtof(freq_str, NULL)*1000000);
-            FURI_LOG_E(TAG,"Frequency = %d", app->config_frequency);
+            FURI_LOG_E(TAG,"Frequency = %lu", app->config_frequency);
             
         },
         redraw);
@@ -390,7 +1304,7 @@ static void lora_config_freq_text_updated(void* context) {
 }
 
 
-static void SetValue(void* context) {
+static void set_value(void* context) {
     LoRaApp* app = (LoRaApp*)context;
 
     FURI_LOG_E(TAG, "Byte buffer: %s", (char *)app->byte_buffer);
@@ -507,13 +1421,7 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
             storage_file_write(my_model->file_rx, "\n", 1);
             
         }
-
-        FURI_LOG_E(TAG,"%s",receiveBuff);  
-        // bytesToAsciiHex(receiveBuff, 16);
-        // asciiBuff[17] = '.';
-        // asciiBuff[18] = '.';
-        // asciiBuff[19] = '.';
-        // asciiBuff[20] = '\0';
+        FURI_LOG_E(TAG,"%s",receiveBuff); 
     }
 
     FuriString* xstr = furi_string_alloc();
@@ -529,9 +1437,12 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
         canvas_draw_str(canvas, 60, 20, furi_string_get_cstr(xstr));
     }
 
+    receiveBuff[17] = '.';
+    receiveBuff[18] = '.';
+    receiveBuff[19] = '.';
+    receiveBuff[20] = '\0';
+
     canvas_draw_str(canvas, 1, 10, (const char*)receiveBuff);
-
-
 
     furi_string_printf(xstr, "RSSI: %d  ", getRSSI());
     canvas_draw_str(canvas, 1, 19, furi_string_get_cstr(xstr));
@@ -539,16 +1450,12 @@ static void lora_view_sniffer_draw_callback(Canvas* canvas, void* model) {
     // furi_string_printf(xstr, "x: %u  OK=play tone", my_model->x);
     // canvas_draw_str(canvas, 44, 24, furi_string_get_cstr(xstr));
 
-    //  furi_string_printf(xstr, "%u", (uint8_t)(furi_hal_random_get() % 256));
-    //  canvas_draw_str(canvas, 60, 20, furi_string_get_cstr(xstr));
-
-    furi_string_printf(
-        xstr,
-        "BW:%s",
-        config_bw_names[my_model->config_bw_index]);
+    furi_string_printf(xstr,"BW:%s",config_bw_names[my_model->config_bw_index]);
     canvas_draw_str(canvas, 1, 28, furi_string_get_cstr(xstr));
+
     furi_string_printf(xstr, "FQ:%s MHz", furi_string_get_cstr(my_model->config_freq_name));
     canvas_draw_str(canvas, 60, 28, furi_string_get_cstr(xstr));
+
     furi_string_free(xstr);
 }
 
@@ -780,8 +1687,21 @@ static bool lora_view_sniffer_input_callback(InputEvent* event, void* context) {
                     model->flag_file = !model->flag_file;
 
                     if(model->flag_file) {
-                        storage_file_open(model->file_rx, PATHLORA, FSAM_WRITE, FSOM_CREATE_ALWAYS);
+                        
+                        char filename[256];
+                        int file_index = 0;
+                        
+                        do {
+                            snprintf(filename, sizeof(filename), PATHLORA, file_index);
+                            file_index++;
+                        } while(storage_file_exists(model->storage_rx, filename));
+                        
+                        if(!storage_file_open(model->file_rx, filename, FSAM_WRITE, FSOM_CREATE_ALWAYS)) {
+                            FURI_LOG_E(TAG, "Failed to open file %s", filename);
+                            return 0;
+                        }
                         FURI_LOG_E(TAG,"OPEN FILE ");
+                        
                     }
                     else {
                         storage_file_close(model->file_rx);
@@ -851,13 +1771,13 @@ void send_data(void* context) {
             size_t bytes_read;
             char c;
 
-            while ((bytes_read = storage_file_read(model->file_tx, &c, 1)) > 0) {
+            while ((bytes_read = storage_file_read(model->file_tx, &c, 1)) > 0 && model->flag_signal) {
                 if (c == '\n' || buffer_index >= 256 - 1) {
                     buffer[buffer_index] = '\0';
 
                     FURI_LOG_E(TAG,"%s\n", buffer);
-                    tx_payload(buffer);
 
+                    tx_payload(buffer);
                     buffer_index = 0;
                 } else {
                     buffer[buffer_index++] = c;
@@ -913,8 +1833,14 @@ static bool lora_view_transmitter_input_callback(InputEvent* event, void* contex
                 } else if(event->key == InputKeyOk) {
                     uint32_t period = furi_ms_to_ticks(1000);
                     furi_timer_stop(app->timer_tx);
+                    model->flag_signal = 1;  
                     send_data(app);                
                     furi_timer_start(app->timer_tx, period);
+                    consumed = true;
+                } else if(event->key == InputKeyBack) {
+                    // FLAG TO STOP TRANSMISSION 
+                    model->flag_signal = 0;                   
+                    view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewSubmenu);
                     consumed = true;
                 }
             },
@@ -939,7 +1865,7 @@ static void lora_app_config_set_payload_length(VariableItem* item) {
     app->byte_buffer = (uint8_t*)malloc(app->byte_buffer_size);
 
     byte_input_set_result_callback(
-        app->byte_input, SetValue, NULL, app, app->byte_buffer, app->byte_buffer_size); 
+        app->byte_input, set_value, NULL, app, app->byte_buffer, app->byte_buffer_size); 
 
     // Order is preamble, header type, packet length, CRC, IQ
     setPacketParams(app->packetPreamble, app->packetHeaderType, app->packetPayloadLength, app->packetCRC, app->packetInvertIQ);
@@ -953,6 +1879,10 @@ static void lora_app_config_set_payload_length(VariableItem* item) {
  * @return     LoRaApp object.
 */
 static LoRaApp* lora_app_alloc() {
+
+    UNUSED(lora_config_eu_dr_change);
+    UNUSED(config_eu_dr_label);
+
     LoRaApp* app = (LoRaApp*)malloc(sizeof(LoRaApp));
     VariableItem* item;
     Gui* gui = furi_record_open(RECORD_GUI);
@@ -965,6 +1895,8 @@ static LoRaApp* lora_app_alloc() {
     app->submenu = submenu_alloc();
     submenu_add_item(
         app->submenu, "Config", LoRaSubmenuIndexConfigure, lora_submenu_callback, app);
+    submenu_add_item(
+        app->submenu, "LoRaWAN", LoRaSubmenuIndexLoRaWAN, lora_submenu_callback, app);    
     submenu_add_item(
         app->submenu, "Sniffer", LoRaSubmenuIndexSniffer, lora_submenu_callback, app);
     submenu_add_item(
@@ -994,14 +1926,20 @@ static LoRaApp* lora_app_alloc() {
 
     byte_input_set_header_text(app->byte_input, "Set byte to LoRa TX");
     byte_input_set_result_callback(
-        app->byte_input, SetValue, NULL, app, app->byte_buffer, app->byte_buffer_size); 
+        app->byte_input, set_value, NULL, app, app->byte_buffer, app->byte_buffer_size);
+
+    view_set_previous_callback(
+        byte_input_get_view(app->byte_input), lora_navigation_submenu_callback);  
 
     app->packetPayloadLength = 16;
 
     app->variable_item_list_config = variable_item_list_alloc();
     variable_item_list_reset(app->variable_item_list_config);
 
+    app->variable_item_list_lorawan = variable_item_list_alloc();
+    variable_item_list_reset(app->variable_item_list_lorawan);
 
+    // frequency
     FuriString* config_freq_name = furi_string_alloc();
     furi_string_set_str(config_freq_name, config_freq_default_value);
     app->config_freq_item = variable_item_list_add(
@@ -1012,7 +1950,7 @@ static LoRaApp* lora_app_alloc() {
     // bw
     item = variable_item_list_add(
         app->variable_item_list_config,
-        config_bw_config_label,
+        config_bw_label,
         COUNT_OF(config_bw_values),
         lora_config_bw_change,
         app);
@@ -1023,13 +1961,24 @@ static LoRaApp* lora_app_alloc() {
     // sf
     item = variable_item_list_add(
         app->variable_item_list_config,
-        config_sf_config_label,
+        config_sf_label,
         COUNT_OF(config_sf_values),
         lora_config_sf_change,
         app);
     uint8_t config_sf_index = 3;
     variable_item_set_current_value_index(item, config_sf_index);
     variable_item_set_current_value_text(item, config_sf_names[config_sf_index]);
+
+    // cr
+    item = variable_item_list_add(
+        app->variable_item_list_config,
+        config_cr_label,
+        COUNT_OF(config_cr_values),
+        lora_config_cr_change,
+        app);
+    uint8_t config_cr_index = 0;
+    variable_item_set_current_value_index(item, config_cr_index);
+    variable_item_set_current_value_text(item, config_cr_names[config_cr_index]);
 
     // Payload length
     item = variable_item_list_add(
@@ -1040,7 +1989,7 @@ static LoRaApp* lora_app_alloc() {
     // Header Type
     item = variable_item_list_add(
         app->variable_item_list_config,
-        config_header_type_config_label,
+        config_header_type_label,
         COUNT_OF(config_header_type_values),
         lora_config_header_type_change,
         app);
@@ -1051,7 +2000,7 @@ static LoRaApp* lora_app_alloc() {
     // CRC
     item = variable_item_list_add(
         app->variable_item_list_config,
-        config_crc_config_label,
+        config_crc_label,
         COUNT_OF(config_crc_values),
         lora_config_crc_change,
         app);
@@ -1062,7 +2011,7 @@ static LoRaApp* lora_app_alloc() {
     // Inverted IQ
     item = variable_item_list_add(
         app->variable_item_list_config,
-        config_iq_config_label,
+        config_iq_label,
         COUNT_OF(config_iq_values),
         lora_config_iq_change,
         app);
@@ -1070,16 +2019,90 @@ static LoRaApp* lora_app_alloc() {
     variable_item_set_current_value_index(item, config_iq_index);
     variable_item_set_current_value_text(item, config_iq_names[config_iq_index]);
 
+    // Frequency Plan
+    item = variable_item_list_add(
+        app->variable_item_list_lorawan,
+        config_region_label,
+        COUNT_OF(config_region_values),
+        lora_config_region_change,
+        app);
+    uint8_t config_region_index = 1;
+    variable_item_set_current_value_index(item, config_region_index);
+    variable_item_set_current_value_text(item, config_region_names[config_region_index]);
+
+    // Data Rate
+    item = variable_item_list_add(
+        app->variable_item_list_lorawan,
+        config_us_dr_label,
+        COUNT_OF(config_us_dr_values),
+        lora_config_us_dr_change,
+        app);
+    uint8_t config_us_dr_index = 0;
+    variable_item_set_current_value_index(item, config_us_dr_index);
+    variable_item_set_current_value_text(item, config_us_dr_names[config_us_dr_index]);
+
+    char text_buf[11] = {0};
+
+    // Uplink Channel 125K
+    item = variable_item_list_add(
+        app->variable_item_list_lorawan,
+        config_us915_ul_channels_125k_label,
+        COUNT_OF(config_us915_ul_channels_125k),
+        lora_config_us915_ul_channels_125k_change,
+        app);
+    uint8_t config_us915_ul_channels_125k_index = 0;
+    variable_item_set_current_value_index(item, config_us915_ul_channels_125k_index);
+
+    snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_us915_ul_channels_125k[config_us915_ul_channels_125k_index] / 1000000, (config_us915_ul_channels_125k[config_us915_ul_channels_125k_index] % 1000000) / 100000);        
+    variable_item_set_current_value_text(item, text_buf);
+
+    // Uplink Channel 500K
+    item = variable_item_list_add(
+        app->variable_item_list_lorawan,
+        config_us915_ul_channels_500k_label,
+        COUNT_OF(config_us915_ul_channels_500k),
+        lora_config_us915_ul_channels_500k_change,
+        app);
+    uint8_t config_us915_ul_channels_500k_index = 0;
+    variable_item_set_current_value_index(item, config_us915_ul_channels_500k_index);
+
+    snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_us915_ul_channels_500k[config_us915_ul_channels_500k_index] / 1000000, (config_us915_ul_channels_500k[config_us915_ul_channels_500k_index] % 1000000) / 100000);
+    variable_item_set_current_value_text(item, text_buf);
+
+    // Downlink Channel 500K
+    item = variable_item_list_add(
+        app->variable_item_list_lorawan,
+        config_us915_dl_channels_500k_label,
+        COUNT_OF(config_us915_dl_channels_500k),
+        lora_config_us915_dl_channels_500k_change,
+        app);
+    uint8_t config_us915_dl_channels_500k_index = 0;
+    variable_item_set_current_value_index(item, config_us915_dl_channels_500k_index);
+
+    snprintf(text_buf,sizeof(text_buf),"%3lu.%1lu MHz", config_us915_dl_channels_500k[config_us915_dl_channels_500k_index] / 1000000, (config_us915_dl_channels_500k[config_us915_dl_channels_500k_index] % 1000000) / 100000);
+    variable_item_set_current_value_text(item, text_buf);
+
+
     variable_item_list_set_enter_callback(
         app->variable_item_list_config, lora_setting_item_clicked, app);
 
     view_set_previous_callback(
         variable_item_list_get_view(app->variable_item_list_config),
         lora_navigation_submenu_callback);
+
+    view_set_previous_callback(
+        variable_item_list_get_view(app->variable_item_list_lorawan),
+        lora_navigation_submenu_callback);
+
     view_dispatcher_add_view(
         app->view_dispatcher,
         LoRaViewConfigure,
         variable_item_list_get_view(app->variable_item_list_config));
+
+    view_dispatcher_add_view(
+        app->view_dispatcher,
+        LoRaViewLoRaWAN,
+        variable_item_list_get_view(app->variable_item_list_lorawan));    
 
     app->view_sniffer = view_alloc();
     view_set_draw_callback(app->view_sniffer, lora_view_sniffer_draw_callback);
@@ -1095,6 +2118,8 @@ static LoRaApp* lora_app_alloc() {
     model_s->config_freq_name = config_freq_name;
     model_s->config_bw_index = config_bw_index;
     model_s->config_sf_index = config_sf_index;
+    model_s->config_cr_index = config_sf_index;
+
     model_s->config_header_type_index = config_header_type_index;
     model_s->config_crc_index = config_crc_index;
     model_s->config_iq_index = config_iq_index;
@@ -1123,6 +2148,8 @@ static LoRaApp* lora_app_alloc() {
     model_t->dialogs_tx = furi_record_open(RECORD_DIALOGS);
     model_t->storage_tx = furi_record_open(RECORD_STORAGE);
     model_t->file_tx = storage_file_alloc(model_t->storage_tx);
+
+    makePaths(app);
 
     view_dispatcher_add_view(app->view_dispatcher, LoraViewTransmitter, app->view_transmitter);
 
@@ -1186,6 +2213,8 @@ static void lora_app_free(LoRaApp* app) {
     view_free(app->view_transmitter);
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewConfigure);
     variable_item_list_free(app->variable_item_list_config);
+    view_dispatcher_remove_view(app->view_dispatcher, LoRaViewLoRaWAN);
+    variable_item_list_free(app->variable_item_list_lorawan);
     view_dispatcher_remove_view(app->view_dispatcher, LoRaViewSubmenu);
     submenu_free(app->submenu);
     view_dispatcher_free(app->view_dispatcher);
