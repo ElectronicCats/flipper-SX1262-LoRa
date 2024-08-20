@@ -1,7 +1,7 @@
 # skeleton_app
 You can use this application as a starting point for creating your own application.  It contains the skeleton framework to get an application running on the Flipper Zero.
 
-Please let me know any feedback!
+Please let me know any feedback! 
 - Discord - https://discord.com/invite/NsjCvqwPAd  (@CodeAllNight)
 - YouTube - https://youtube.com/@MrDerekJamison/playlists
 - GitHub - https://github.com/jamisonderek/flipper-zero-tutorials
