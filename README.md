@@ -1,3 +1,6 @@
+![GitHub release (with filter)](https://img.shields.io/github/v/release/ElectronicCats/flipper-rs485modbus?color=%23008000)
+![GitHub actions](https://img.shields.io/github/actions/workflow/status/ElectronicCats/flipper-rs485modbus/build.yml)
+
 # Flipper LoRa Relay App :dolphin:
 
 Work with LoRa radio communication signals. Now you can interact with LoRa transmissions using the Flipper Zero. Basic tasks such as sniffing and injection are available, making it easy to perform activities such as analysis, error detection and configuration of new peripherals to the network.
