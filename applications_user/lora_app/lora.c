@@ -24,7 +24,7 @@ Code porting from LoRa library https://github.dev/thekakester/Arduino-LoRa-Sx126
 
 static uint32_t timeout = 1000;
 //static uint32_t timeout = 100;
-static FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
+static const FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
 
 const GpioPin* const pin_beacon = &gpio_swclk;
 const GpioPin* const pin_nss1 = &gpio_ext_pc0;
@@ -41,6 +41,7 @@ uint32_t pllFrequency;
 uint8_t bandwidth;
 uint8_t codingRate;
 uint8_t spreadingFactor;
+uint16_t syncWord;
 uint8_t lowDataRateOptimize;
 uint32_t transmitTimeout; //Worst-case transmit time depends on some factors
 
@@ -108,20 +109,6 @@ uint8_t readRegister(uint16_t address) {
 
     readRegisters(address, &data, 1);
     return data;
-}
-
-uint16_t getSyncWord() {
-    uint8_t msb, lsb;
-    uint16_t syncword;
-    msb = readRegister(REG_LR_SYNCWORD);
-    lsb = readRegister(REG_LR_SYNCWORD + 1);
-
-    FURI_LOG_E(TAG, "MSB: %02x", msb);
-    FURI_LOG_E(TAG, "LSB: %02x", lsb);
-
-    syncword = (msb << 8) + lsb;
-
-    return syncword;
 }
 
 uint32_t getFreqInt() {
@@ -577,6 +564,30 @@ bool configSetCodingRate(int cr) {
     }
     codingRate = cr;
     updateModulationParameters();
+    return true;
+}
+
+/* Set the sync word*/
+bool configSetSyncWord(int sw) {
+    syncWord = sw;
+
+    // Datasheet SX1262 sección 13.4.12 – SetSyncWord (opcode 0x74)
+    furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
+    furi_hal_spi_acquire(spi);
+
+    spiBuff[0] = 0x74; // Opcode SetSyncWord
+    spiBuff[1] = (syncWord >> 8) & 0xFF; // MSB
+    spiBuff[2] = syncWord & 0xFF; // LSB
+
+    if(furi_hal_spi_bus_tx(spi, spiBuff, 3, timeout)) {
+        furi_hal_spi_release(spi);
+    } else {
+        FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx for SetSyncWord");
+        furi_hal_spi_release(spi);
+    }
+
+    furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
+    furi_delay_ms(100); // Allow radio to process command
     return true;
 }
 
