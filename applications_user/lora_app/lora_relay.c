@@ -328,8 +328,8 @@ const char* const config_cr_names[] = {
 
 // Sync Word configuration
 const uint16_t config_sw_values[] = {
-    0x12, // Private
-    0x34, // Public (LoRaWAN/TTN)
+    0x1424, // Private
+    0x3444, // Public (LoRaWAN/TTN)
 };
 
 const char* const config_sw_names[] = {
