@@ -52,7 +52,7 @@ bool configSetFrequency(long frequencyInHz);
 bool configSetBandwidth(int bw);
 bool configSetSpreadingFactor(int sf);
 bool configSetCodingRate(int cr);
-bool configSetSyncWord(int syncWord);
+bool configSetSyncWord(uint16_t sw);
 void setPacketParams(
     uint16_t packetParam1,
     uint8_t packetParam2,
@@ -333,8 +333,8 @@ const uint16_t config_sw_values[] = {
 };
 
 const char* const config_sw_names[] = {
-    "Private (0x12)",
-    "Public (0x34)",
+    "Private (0x1424)",
+    "Public (0x3444)",
 };
 
 const uint8_t config_region_values[] = {

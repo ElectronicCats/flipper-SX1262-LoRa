@@ -568,26 +568,38 @@ bool configSetCodingRate(int cr) {
 }
 
 /* Set the sync word*/
-bool configSetSyncWord(int sw) {
-    syncWord = sw;
+bool configSetSyncWord(uint16_t sw) {
+    uint8_t msb = (sw >> 8) & 0xFF;
+    uint8_t lsb = sw & 0xFF;
 
-    // Datasheet SX1262 sección 13.4.12 – SetSyncWord (opcode 0x74)
-    furi_hal_gpio_write(pin_nss1, false); // Enable radio chip-select
+    // Write MSB to 0x0740
+    furi_hal_gpio_write(pin_nss1, false); // CS low
     furi_hal_spi_acquire(spi);
 
-    spiBuff[0] = 0x74; // Opcode SetSyncWord
-    spiBuff[1] = (syncWord >> 8) & 0xFF; // MSB
-    spiBuff[2] = syncWord & 0xFF; // LSB
+    spiBuff[0] = 0x0D; // WriteRegister opcode
+    spiBuff[1] = 0x07; // Address high byte (0x0740)
+    spiBuff[2] = 0x40; // Address low byte
+    spiBuff[3] = msb; // Data
+    furi_hal_spi_bus_tx(spi, spiBuff, 4, timeout);
 
-    if(furi_hal_spi_bus_tx(spi, spiBuff, 3, timeout)) {
-        furi_hal_spi_release(spi);
-    } else {
-        FURI_LOG_E(TAG, "FAILED - furi_hal_spi_bus_tx for SetSyncWord");
-        furi_hal_spi_release(spi);
-    }
+    furi_hal_spi_release(spi);
+    furi_hal_gpio_write(pin_nss1, true); // CS high
 
-    furi_hal_gpio_write(pin_nss1, true); // Disable radio chip-select
-    furi_delay_ms(100); // Allow radio to process command
+    // Write LSB to 0x0741
+    furi_hal_gpio_write(pin_nss1, false); // CS low
+    furi_hal_spi_acquire(spi);
+
+    spiBuff[0] = 0x0D; // WriteRegister opcode
+    spiBuff[1] = 0x07; // Address high byte (0x0741)
+    spiBuff[2] = 0x41; // Address low byte
+    spiBuff[3] = lsb; // Data
+    furi_hal_spi_bus_tx(spi, spiBuff, 4, timeout);
+
+    furi_hal_spi_release(spi);
+    furi_hal_gpio_write(pin_nss1, true); // CS high
+
+    furi_delay_ms(1); // give chip time
+
     return true;
 }
 
