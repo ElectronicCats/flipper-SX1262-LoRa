@@ -24,9 +24,12 @@ Code porting from LoRa library https://github.dev/thekakester/Arduino-LoRa-Sx126
 
 static uint32_t timeout = 1000;
 //static uint32_t timeout = 100;
-static const FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
+
+FuriHalSpiBusHandle spi_handle;
+const FuriHalSpiBusHandle* spi = &spi_handle;
 
 const GpioPin* const pin_beacon = &gpio_swclk;
+const GpioPin* const pin_nss0 = &gpio_ext_pa4;
 const GpioPin* const pin_nss1 = &gpio_ext_pc0;
 const GpioPin* const pin_reset = &gpio_ext_pc1;
 const GpioPin* const pin_ant_sw = &gpio_usart_tx;
@@ -1009,15 +1012,28 @@ void printRegisters(uint16_t Start, uint16_t End) {
     }
 }
 
+void init_spi() {
+    spi_handle.bus = furi_hal_spi_bus_handle_external.bus;
+    spi_handle.callback = furi_hal_spi_bus_handle_external.callback;
+    spi_handle.cs = pin_nss1;
+    spi_handle.miso = furi_hal_spi_bus_handle_external.miso;
+    spi_handle.mosi = furi_hal_spi_bus_handle_external.mosi;
+    spi_handle.sck = furi_hal_spi_bus_handle_external.sck;
+}
+
 bool begin() {
     //furi_hal_gpio_init(pin_reset, GpioModeOutputPushPull, GpioPullUp, GpioSpeedVeryHigh);
     //furi_hal_gpio_init(pin_nss1, GpioModeOutputPushPull, GpioPullUp, GpioSpeedVeryHigh);
 
+    init_spi();
+
     furi_hal_gpio_init_simple(pin_reset, GpioModeOutputPushPull);
+    furi_hal_gpio_init_simple(pin_nss0, GpioModeOutputPushPull);
     furi_hal_gpio_init_simple(pin_nss1, GpioModeOutputPushPull);
 
     furi_hal_gpio_init_simple(pin_beacon, GpioModeOutputPushPull);
 
+    furi_hal_gpio_write(pin_nss0, false);
     furi_hal_gpio_write(pin_nss1, true);
     furi_hal_gpio_write(pin_reset, true);
 
