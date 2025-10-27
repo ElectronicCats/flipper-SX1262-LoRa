@@ -11,6 +11,7 @@
 #include <gui/modules/variable_item_list.h>
 #include <notification/notification.h>
 #include <notification/notification_messages.h>
+#include <loader/loader.h>
 
 #include <dialogs/dialogs.h>
 #include <storage/storage.h>
@@ -32,6 +33,8 @@
 
 //static const FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
 
+const GpioPin* nss_1 = &gpio_ext_pc0;
+const GpioPin* reset_sx = &gpio_ext_pc1;
 const GpioPin* const pin_led = &gpio_swclk;
 const GpioPin* const pin_back = &gpio_button_back;
 
@@ -72,6 +75,7 @@ typedef enum {
     LoRaSubmenuIndexSniffer,
     LoRaSubmenuIndexTransmitter,
     LoRaSubmenuIndexManualTX,
+    LoRaSubmenuIndexLinkerSubGHZ,
     LoRaSubmenuIndexAbout,
 } LoRaSubmenuIndex;
 
@@ -272,6 +276,30 @@ static void lora_submenu_callback(void* context, uint32_t index) {
         break;
     case LoRaSubmenuIndexManualTX:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewByteInput);
+        break;
+    case LoRaSubmenuIndexLinkerSubGHZ:
+        furi_hal_gpio_init_simple(nss_1, GpioModeOutputPushPull);
+        furi_hal_gpio_init_simple(reset_sx, GpioModeOutputPushPull);
+        furi_hal_gpio_init_simple(pin_led, GpioModeOutputPushPull);
+
+        furi_hal_gpio_write(nss_1, false);
+        furi_hal_gpio_write(reset_sx, false);
+
+        furi_hal_gpio_write(pin_led, true);
+        furi_delay_ms(100);
+        furi_hal_gpio_write(pin_led, false);
+        furi_delay_ms(100);
+        furi_hal_gpio_write(pin_led, true);
+        furi_delay_ms(100);
+        furi_hal_gpio_write(pin_led, false);
+
+        view_dispatcher_stop(app->view_dispatcher);
+
+        Loader* loader = furi_record_open(RECORD_LOADER);
+
+        loader_enqueue_launch(loader, "Sub-GHz", NULL, LoaderDeferredLaunchFlagGui);
+
+        furi_record_close(RECORD_LOADER);
         break;
     case LoRaSubmenuIndexAbout:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewAbout);
@@ -1980,6 +2008,8 @@ static LoRaApp* lora_app_alloc() {
         app->submenu, "Transmitter", LoRaSubmenuIndexTransmitter, lora_submenu_callback, app);
     submenu_add_item(
         app->submenu, "Send LoRa byte", LoRaSubmenuIndexManualTX, lora_submenu_callback, app);
+    submenu_add_item(
+        app->submenu, "Linker Sub-GHz", LoRaSubmenuIndexLinkerSubGHZ, lora_submenu_callback, app);
     submenu_add_item(app->submenu, "About", LoRaSubmenuIndexAbout, lora_submenu_callback, app);
     view_set_previous_callback(submenu_get_view(app->submenu), lora_navigation_exit_callback);
     view_dispatcher_add_view(
@@ -2391,6 +2421,6 @@ int32_t main_lora_app(void* _p) {
 
     // Typically when a pin is no longer in use, it is set to analog mode.
     furi_hal_gpio_init_simple(pin_led, GpioModeAnalog);
-
+    FURI_LOG_I(TAG, "SALIO DE LORA");
     return 0;
 }
