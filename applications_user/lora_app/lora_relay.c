@@ -5,7 +5,7 @@
 #include <gui/view.h>
 #include <gui/view_dispatcher.h>
 #include <gui/modules/submenu.h>
-#include <gui/modules/text_input.h>
+#include <modules/text_input.h>
 #include <gui/modules/byte_input.h>
 #include <gui/modules/widget.h>
 #include <gui/modules/variable_item_list.h>
@@ -31,8 +31,6 @@
 #define CLOCK_TIME_FORMAT     "%.2d:%.2d:%.2d"
 #define CLOCK_ISO_DATE_FORMAT "%.4d-%.2d-%.2d"
 
-//static const FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
-
 const GpioPin* nss_1 = &gpio_ext_pc0;
 const GpioPin* reset_sx = &gpio_ext_pc1;
 const GpioPin* const pin_led = &gpio_swclk;
@@ -55,7 +53,7 @@ bool configSetFrequency(long frequencyInHz);
 bool configSetBandwidth(int bw);
 bool configSetSpreadingFactor(int sf);
 bool configSetCodingRate(int cr);
-bool configSetSyncWord(uint16_t sw);
+bool configSetSyncWord(uint8_t syncWord, uint8_t controlBits);
 void setPacketParams(
     uint16_t packetParam1,
     uint8_t packetParam2,
@@ -300,7 +298,7 @@ static void lora_submenu_callback(void* context, uint32_t index) {
         loader_enqueue_launch(loader, "Sub-GHz", NULL, LoaderDeferredLaunchFlagGui);
 
         furi_record_close(RECORD_LOADER);
-        break;
+        break;        
     case LoRaSubmenuIndexAbout:
         view_dispatcher_switch_to_view(app->view_dispatcher, LoRaViewAbout);
         break;
@@ -372,17 +370,18 @@ const char* const config_cr_names[] = {
     "4/8",
 };
 
-// Sync Word configuration
-const uint16_t config_sw_values[] = {
-    0x002B, // Meshtastic
-    0x1424, // Private
-    0x3444, // Public (LoRaWAN/TTN)
+// Sync Word options
+const uint8_t config_sw_values[] = {
+    0x12,  // Private network
+    0x34,  // Public network (LoRaWAN/TTN)
+    0x2B,  // Meshtastic
 };
 
+// Human-readable names
 const char* const config_sw_names[] = {
+    "Private (0x12)",
+    "Public (0x34)",
     "Meshtastic (0x2B)",
-    "Public (0x3444)",
-    "Private (0x1424)",
 };
 
 const uint8_t config_region_values[] = {
@@ -625,7 +624,7 @@ static void lora_config_sw_change(VariableItem* item) {
     LoRaSnifferModel* model = view_get_model(app->view_sniffer);
     model->config_sw_index = index;
 
-    configSetSyncWord(config_sw_values[index]);
+    configSetSyncWord(config_sw_values[index], 0x44);
 }
 
 static const char* config_header_type_label = "Header Type";
@@ -1193,8 +1192,7 @@ static void lora_config_region_change(VariableItem* item) {
             app);
         uint8_t config_region_index = 0;
         variable_item_set_current_value_index(app->item_region, config_region_index);
-        variable_item_set_current_value_text(
-            app->item_region, config_region_names[config_region_index]);
+        variable_item_set_current_value_text(app->item_region, config_region_names[config_region_index]);
 
         // EU868 Data Rate
         app->item_eu_dr = variable_item_list_add(
@@ -1205,8 +1203,7 @@ static void lora_config_region_change(VariableItem* item) {
             app);
         uint8_t config_eu_dr_index = 0;
         variable_item_set_current_value_index(app->item_eu_dr, config_eu_dr_index);
-        variable_item_set_current_value_text(
-            app->item_eu_dr, config_eu_dr_names[config_eu_dr_index]);
+        variable_item_set_current_value_text(app->item_eu_dr, config_eu_dr_names[config_eu_dr_index]);
 
         // Uplink EU868 Channel 125K
         app->item_eu868_ul_channels_125k = variable_item_list_add(
@@ -1216,8 +1213,7 @@ static void lora_config_region_change(VariableItem* item) {
             lora_config_eu868_ul_channels_125k_change,
             app);
         uint8_t config_eu868_ul_channels_125k_index = 0;
-        variable_item_set_current_value_index(
-            app->item_eu868_ul_channels_125k, config_eu868_ul_channels_125k_index);
+        variable_item_set_current_value_index(app->item_eu868_ul_channels_125k, config_eu868_ul_channels_125k_index);
 
         snprintf(
             text_buf,
@@ -1235,8 +1231,7 @@ static void lora_config_region_change(VariableItem* item) {
             lora_config_eu868_ul_channels_250k_change,
             app);
         uint8_t config_eu868_ul_channels_250k_index = 0;
-        variable_item_set_current_value_index(
-            app->item_eu868_ul_channels_250k, config_eu868_ul_channels_250k_index);
+        variable_item_set_current_value_index(app->item_eu868_ul_channels_250k, config_eu868_ul_channels_250k_index);
 
         snprintf(
             text_buf,
@@ -1254,8 +1249,7 @@ static void lora_config_region_change(VariableItem* item) {
             lora_config_eu868_dl_channels_rx1_change,
             app);
         uint8_t config_eu868_dl_channels_rx1_index = 0;
-        variable_item_set_current_value_index(
-            app->item_eu868_dl_channels_rx1, config_eu868_dl_channels_rx1_index);
+        variable_item_set_current_value_index(app->item_eu868_dl_channels_rx1, config_eu868_dl_channels_rx1_index);
 
         snprintf(
             text_buf,
@@ -1289,8 +1283,7 @@ static void lora_config_region_change(VariableItem* item) {
             app);
         uint8_t config_region_index = 1;
         variable_item_set_current_value_index(app->item_region, config_region_index);
-        variable_item_set_current_value_text(
-            app->item_region, config_region_names[config_region_index]);
+        variable_item_set_current_value_text(app->item_region, config_region_names[config_region_index]);
 
         // US915 Data Rate
         app->item_us_dr = variable_item_list_add(
@@ -1301,8 +1294,7 @@ static void lora_config_region_change(VariableItem* item) {
             app);
         uint8_t config_us_dr_index = 0;
         variable_item_set_current_value_index(app->item_us_dr, config_us_dr_index);
-        variable_item_set_current_value_text(
-            app->item_us_dr, config_us_dr_names[config_us_dr_index]);
+        variable_item_set_current_value_text(app->item_us_dr, config_us_dr_names[config_us_dr_index]);
 
         // Uplink US915 Channel 125K
         app->item_us915_ul_channels_125k = variable_item_list_add(
@@ -1312,8 +1304,7 @@ static void lora_config_region_change(VariableItem* item) {
             lora_config_us915_ul_channels_125k_change,
             app);
         uint8_t config_us915_ul_channels_125k_index = 0;
-        variable_item_set_current_value_index(
-            app->item_us915_ul_channels_125k, config_us915_ul_channels_125k_index);
+        variable_item_set_current_value_index(app->item_us915_ul_channels_125k, config_us915_ul_channels_125k_index);
 
         snprintf(
             text_buf,
@@ -1331,8 +1322,7 @@ static void lora_config_region_change(VariableItem* item) {
             lora_config_us915_ul_channels_500k_change,
             app);
         uint8_t config_us915_ul_channels_500k_index = 0;
-        variable_item_set_current_value_index(
-            app->item_us915_ul_channels_500k, config_us915_ul_channels_500k_index);
+        variable_item_set_current_value_index(app->item_us915_ul_channels_500k, config_us915_ul_channels_500k_index);
 
         snprintf(
             text_buf,
@@ -1350,8 +1340,7 @@ static void lora_config_region_change(VariableItem* item) {
             lora_config_us915_dl_channels_500k_change,
             app);
         uint8_t config_us915_dl_channels_500k_index = 0;
-        variable_item_set_current_value_index(
-            app->item_us915_dl_channels_500k, config_us915_dl_channels_500k_index);
+        variable_item_set_current_value_index(app->item_us915_dl_channels_500k, config_us915_dl_channels_500k_index);
 
         snprintf(
             text_buf,
@@ -2009,7 +1998,7 @@ static LoRaApp* lora_app_alloc() {
     submenu_add_item(
         app->submenu, "Send LoRa byte", LoRaSubmenuIndexManualTX, lora_submenu_callback, app);
     submenu_add_item(
-        app->submenu, "Linker Sub-GHz", LoRaSubmenuIndexLinkerSubGHZ, lora_submenu_callback, app);
+        app->submenu, "Linker Sub-GHz", LoRaSubmenuIndexLinkerSubGHZ, lora_submenu_callback, app);        
     submenu_add_item(app->submenu, "About", LoRaSubmenuIndexAbout, lora_submenu_callback, app);
     view_set_previous_callback(submenu_get_view(app->submenu), lora_navigation_exit_callback);
     view_dispatcher_add_view(
@@ -2116,8 +2105,7 @@ static LoRaApp* lora_app_alloc() {
         app);
     uint8_t config_header_type_index = 0;
     variable_item_set_current_value_index(app->item_header_type, config_header_type_index);
-    variable_item_set_current_value_text(
-        app->item_header_type, config_header_type_names[config_header_type_index]);
+    variable_item_set_current_value_text(app->item_header_type, config_header_type_names[config_header_type_index]);
 
     // CRC
     app->item_crc = variable_item_list_add(
@@ -2150,8 +2138,7 @@ static LoRaApp* lora_app_alloc() {
         app);
     uint8_t config_region_index = 1;
     variable_item_set_current_value_index(app->item_region, config_region_index);
-    variable_item_set_current_value_text(
-        app->item_region, config_region_names[config_region_index]);
+    variable_item_set_current_value_text(app->item_region, config_region_names[config_region_index]);
 
     // Data Rate
     app->item_us_dr = variable_item_list_add(
@@ -2174,8 +2161,7 @@ static LoRaApp* lora_app_alloc() {
         lora_config_us915_ul_channels_125k_change,
         app);
     uint8_t config_us915_ul_channels_125k_index = 0;
-    variable_item_set_current_value_index(
-        app->item_us915_ul_channels_125k, config_us915_ul_channels_125k_index);
+    variable_item_set_current_value_index(app->item_us915_ul_channels_125k, config_us915_ul_channels_125k_index);
 
     snprintf(
         text_buf,
@@ -2193,8 +2179,7 @@ static LoRaApp* lora_app_alloc() {
         lora_config_us915_ul_channels_500k_change,
         app);
     uint8_t config_us915_ul_channels_500k_index = 0;
-    variable_item_set_current_value_index(
-        app->item_us915_ul_channels_500k, config_us915_ul_channels_500k_index);
+    variable_item_set_current_value_index(app->item_us915_ul_channels_500k, config_us915_ul_channels_500k_index);
 
     snprintf(
         text_buf,
@@ -2212,8 +2197,7 @@ static LoRaApp* lora_app_alloc() {
         lora_config_us915_dl_channels_500k_change,
         app);
     uint8_t config_us915_dl_channels_500k_index = 0;
-    variable_item_set_current_value_index(
-        app->item_us915_dl_channels_500k, config_us915_dl_channels_500k_index);
+    variable_item_set_current_value_index(app->item_us915_dl_channels_500k, config_us915_dl_channels_500k_index);
 
     snprintf(
         text_buf,
@@ -2421,6 +2405,6 @@ int32_t main_lora_app(void* _p) {
 
     // Typically when a pin is no longer in use, it is set to analog mode.
     furi_hal_gpio_init_simple(pin_led, GpioModeAnalog);
-    FURI_LOG_I(TAG, "SALIO DE LORA");
+
     return 0;
 }
