@@ -24,12 +24,9 @@ Code porting from LoRa library https://github.dev/thekakester/Arduino-LoRa-Sx126
 
 static uint32_t timeout = 1000;
 //static uint32_t timeout = 100;
-
-FuriHalSpiBusHandle spi_handle;
-const FuriHalSpiBusHandle* spi = &spi_handle;
+static const FuriHalSpiBusHandle* spi = &furi_hal_spi_bus_handle_external;
 
 const GpioPin* const pin_beacon = &gpio_swclk;
-const GpioPin* const pin_nss0 = &gpio_ext_pa4;
 const GpioPin* const pin_nss1 = &gpio_ext_pc0;
 const GpioPin* const pin_reset = &gpio_ext_pc1;
 const GpioPin* const pin_ant_sw = &gpio_usart_tx;
@@ -570,38 +567,26 @@ bool configSetCodingRate(int cr) {
     return true;
 }
 
-/* Set the sync word*/
-bool configSetSyncWord(uint16_t sw) {
-    uint8_t msb = (sw >> 8) & 0xFF;
-    uint8_t lsb = sw & 0xFF;
+bool configSetSyncWord(uint8_t syncWord, uint8_t controlBits) {
+    uint8_t msb = (syncWord & 0xF0) | ((controlBits & 0xF0) >> 4);
+    uint8_t lsb = ((syncWord & 0x0F) << 4) | (controlBits & 0x0F);
 
-    // Write MSB to 0x0740
+    // Write both bytes in a single SPI transaction
     furi_hal_gpio_write(pin_nss1, false); // CS low
     furi_hal_spi_acquire(spi);
 
-    spiBuff[0] = 0x0D; // WriteRegister opcode
-    spiBuff[1] = 0x07; // Address high byte (0x0740)
-    spiBuff[2] = 0x40; // Address low byte
-    spiBuff[3] = msb; // Data
-    furi_hal_spi_bus_tx(spi, spiBuff, 4, timeout);
+    spiBuff[0] = 0x0D;  // WriteRegister opcode
+    spiBuff[1] = 0x07;  // Address high byte (0x0740)
+    spiBuff[2] = 0x40;  // Address low byte
+    spiBuff[3] = msb;   // MSB data
+    spiBuff[4] = lsb;   // LSB data
+
+    furi_hal_spi_bus_tx(spi, spiBuff, 5, timeout);
 
     furi_hal_spi_release(spi);
     furi_hal_gpio_write(pin_nss1, true); // CS high
 
-    // Write LSB to 0x0741
-    furi_hal_gpio_write(pin_nss1, false); // CS low
-    furi_hal_spi_acquire(spi);
-
-    spiBuff[0] = 0x0D; // WriteRegister opcode
-    spiBuff[1] = 0x07; // Address high byte (0x0741)
-    spiBuff[2] = 0x41; // Address low byte
-    spiBuff[3] = lsb; // Data
-    furi_hal_spi_bus_tx(spi, spiBuff, 4, timeout);
-
-    furi_hal_spi_release(spi);
-    furi_hal_gpio_write(pin_nss1, true); // CS high
-
-    furi_delay_ms(1); // give chip time
+    furi_delay_ms(1);
 
     return true;
 }
@@ -672,7 +657,7 @@ void setModeReceive() {
 
     spiBuff[0] = 0x8C; //Opcode for "SetPacketParameters"
     spiBuff[1] = 0x00; //PacketParam1 = Preamble Len MSB
-    spiBuff[2] = 0x0C; //PacketParam2 = Preamble Len LSB
+    spiBuff[2] = 0x10; //PacketParam2 = Preamble Len LSB - 16
     spiBuff[3] = 0x00; //PacketParam3 = Header Type. 0x00 = Variable Len, 0x01 = Fixed Length
     spiBuff[4] = 0xFF; //PacketParam4 = Payload Length (Max is 255 bytes)
     spiBuff[5] = 0x00; //PacketParam5 = CRC Type. 0x00 = Off, 0x01 = on
@@ -749,7 +734,7 @@ void transmit(uint8_t* data, int dataLen) {
 
     spiBuff[0] = 0x8C; // Opcode for "SetPacketParameters"
     spiBuff[1] = 0x00; // PacketParam1 = Preamble Len MSB
-    spiBuff[2] = 0x0C; // PacketParam2 = Preamble Len LSB
+    spiBuff[2] = 0x10; // PacketParam2 = Preamble Len LSB
     spiBuff[3] = 0x00; // PacketParam3 = Header Type. 0x00 = Variable Len, 0x01 = Fixed Length
     spiBuff[4] = dataLen; // PacketParam4 = Payload Length (Max is 255 bytes)
     spiBuff[5] = 0x00; // PacketParam5 = CRC Type. 0x00 = Off, 0x01 = on
@@ -1012,28 +997,15 @@ void printRegisters(uint16_t Start, uint16_t End) {
     }
 }
 
-void init_spi() {
-    spi_handle.bus = furi_hal_spi_bus_handle_external.bus;
-    spi_handle.callback = furi_hal_spi_bus_handle_external.callback;
-    spi_handle.cs = pin_nss1;
-    spi_handle.miso = furi_hal_spi_bus_handle_external.miso;
-    spi_handle.mosi = furi_hal_spi_bus_handle_external.mosi;
-    spi_handle.sck = furi_hal_spi_bus_handle_external.sck;
-}
-
 bool begin() {
     //furi_hal_gpio_init(pin_reset, GpioModeOutputPushPull, GpioPullUp, GpioSpeedVeryHigh);
     //furi_hal_gpio_init(pin_nss1, GpioModeOutputPushPull, GpioPullUp, GpioSpeedVeryHigh);
 
-    init_spi();
-
     furi_hal_gpio_init_simple(pin_reset, GpioModeOutputPushPull);
-    furi_hal_gpio_init_simple(pin_nss0, GpioModeOutputPushPull);
     furi_hal_gpio_init_simple(pin_nss1, GpioModeOutputPushPull);
 
     furi_hal_gpio_init_simple(pin_beacon, GpioModeOutputPushPull);
 
-    furi_hal_gpio_write(pin_nss0, false);
     furi_hal_gpio_write(pin_nss1, true);
     furi_hal_gpio_write(pin_reset, true);
 
