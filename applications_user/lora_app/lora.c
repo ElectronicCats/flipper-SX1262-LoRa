@@ -577,11 +577,11 @@ bool configSetSyncWord(uint8_t syncWord, uint8_t controlBits) {
     furi_hal_gpio_write(pin_nss1, false); // CS low
     furi_hal_spi_acquire(spi);
 
-    spiBuff[0] = 0x0D;  // WriteRegister opcode
-    spiBuff[1] = 0x07;  // Address high byte (0x0740)
-    spiBuff[2] = 0x40;  // Address low byte
-    spiBuff[3] = msb;   // MSB data
-    spiBuff[4] = lsb;   // LSB data
+    spiBuff[0] = 0x0D; // WriteRegister opcode
+    spiBuff[1] = 0x07; // Address high byte (0x0740)
+    spiBuff[2] = 0x40; // Address low byte
+    spiBuff[3] = msb; // MSB data
+    spiBuff[4] = lsb; // LSB data
 
     furi_hal_spi_bus_tx(spi, spiBuff, 5, timeout);
 
@@ -1015,12 +1015,12 @@ bool begin() {
     init_spi();
 
     furi_hal_gpio_init_simple(pin_reset, GpioModeOutputPushPull);
-    furi_hal_gpio_init_simple(pin_nss0, GpioModeOutputPushPull);    
+    furi_hal_gpio_init_simple(pin_nss0, GpioModeOutputPushPull);
     furi_hal_gpio_init_simple(pin_nss1, GpioModeOutputPushPull);
 
     furi_hal_gpio_init_simple(pin_beacon, GpioModeOutputPushPull);
 
-    furi_hal_gpio_write(pin_nss0, false);    
+    furi_hal_gpio_write(pin_nss0, false);
     furi_hal_gpio_write(pin_nss1, true);
     furi_hal_gpio_write(pin_reset, true);
 
