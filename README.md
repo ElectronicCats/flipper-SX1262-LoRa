@@ -16,7 +16,7 @@ Work with LoRa radio communication signals. Now you can interact with LoRa trans
  </a>
 </p>
 
-Requires the [**Electronic Cats Flipper Add-On: Sub-GHz**](https://electroniccats.com/store/flipper-add-on-subghz/).
+Requires the [**Electronic Cats Flipper Add-On: Sub-GHz**](https://electroniccats.com/store/flipper-lra-subghz/).
 
 ## Features
 
