@@ -1,0 +1,67 @@
+name: "FAP: Firmware Compatibility Check"
+
+# Monthly check: does the latest official Flipper firmware still load the
+# latest published .fap? Fails (red run) when a rebuild/release is needed.
+on:
+  schedule:
+    - cron: "17 14 1 * *" # day 1 of every month, 14:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  firmware-compat:
+    runs-on: ubuntu-latest
+    name: "Latest official firmware vs published FAP"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Fails here if the source no longer builds with the new SDK
+      # (removed/changed API -> code changes needed).
+      - name: Build with latest official SDK
+        uses: flipperdevices/flipperzero-ufbt-action@v0.1.4
+        id: build-app
+        with:
+          ufbt-version: "==0.2.6"
+          sdk-channel: release
+          app-dir: ./applications_user/lora_app/
+
+      # Fails here if the published .fap is no longer loadable by the new
+      # firmware (source builds fine -> just rebuild and publish a release).
+      - name: Compare published FAP with firmware API
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FW_API: ${{ steps.build-app.outputs.api-version }}
+          FW_SDK: ${{ steps.build-app.outputs.suffix }}
+        run: |
+          REL=$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq '[.[] | select(.draft==false and (.tag_name|startswith("v"))) | select(any(.assets[]; .name|endswith(".fap")))][0] // empty | "\(.tag_name) \([.assets[]|select(.name|endswith(".fap"))|.name][0])"')
+          if [ -z "$REL" ]; then
+            echo "::notice::No published v* release with a .fap yet; nothing to compare."
+            exit 0
+          fi
+          read -r TAG FAP <<< "$REL"
+          gh release download "$TAG" -R "$GITHUB_REPOSITORY" -p "$FAP" -D published
+          python3 - "published/$FAP" "$TAG" <<'EOF'
+          import os, struct, sys
+          d = open(sys.argv[1], "rb").read()
+          shoff, = struct.unpack_from("<I", d, 0x20)
+          esz, num, stri = struct.unpack_from("<HHH", d, 0x2E)
+          sh = [struct.unpack_from("<10I", d, shoff + i * esz) for i in range(num)]
+          name = lambda s: d[sh[stri][4] + s[0]:].split(b"\0")[0]
+          meta = next(s for s in sh if name(s) == b".fapmeta")
+          api, = struct.unpack_from("<I", d, meta[4] + 8)
+          app = (api >> 16, api & 0xFFFF)
+          fw = tuple(int(x) for x in os.environ["FW_API"].split("."))
+          # Flipper loader rule: same major, app minor <= firmware minor
+          ok = app[0] == fw[0] and app[1] <= fw[1]
+          msg = f"{sys.argv[2]} was built for API {app[0]}.{app[1]}; latest official firmware ({os.environ['FW_SDK']}) is API {fw[0]}.{fw[1]}"
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(f"### Firmware compatibility\n\n- {msg}\n- Result: **{'compatible' if ok else 'OUTDATED - rebuild and publish a new release'}**\n")
+          if not ok:
+              print(f"::error::Outdated App: {msg}. The source still builds with the new SDK: publish a new release.")
+              sys.exit(1)
+          print(f"OK: {msg}")
+          EOF
